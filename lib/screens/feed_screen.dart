@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:video_player/video_player.dart';
 import '../theme/app_theme.dart';
 import '../services/geocoding_service.dart';
 import '../services/location_service.dart';
@@ -36,31 +35,15 @@ class _FeedScreenState extends State<FeedScreen> {
   }
 
   Future<void> _initializeLocation() async {
-    final position = await LocationService.getCurrentLocation();
-    if (position != null) {
-      print('Location initialized: ${position.latitude}, ${position.longitude}');
-      // Recalculate distances for all complaints after getting location
-      setState(() {
-        // This will trigger a rebuild and recalculate distances
-      });
-    } else {
-      print('Failed to get location');
-      // Show user-friendly message about location
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Enable location services to see distances to complaints'),
-            action: SnackBarAction(
-              label: 'Settings',
-              onPressed: () {
-                // This would open app settings, but requires additional setup
-                print('Open location settings');
-              },
-            ),
-            duration: const Duration(seconds: 5),
-          ),
-        );
+    try {
+      final position = await LocationService.getCurrentLocation();
+      if (position != null) {
+        print('Location initialized successfully');
+      } else {
+        print('Location permission denied or unavailable');
       }
+    } catch (e) {
+      print('Location initialization failed: $e');
     }
   }
 
@@ -71,46 +54,48 @@ class _FeedScreenState extends State<FeedScreen> {
           .select('*')
           .order('created_at', ascending: false);
       
-
-      // Get user profiles for all complaints in one query
-      final userIds = response.map((c) => c['user_id']).where((id) => id != null).toSet().toList();
-      Map<String, String> userProfiles = {};
+      // Get unique user IDs from complaints
+      Set<String> userIds = response.map((complaint) => complaint['user_id'] as String).toSet();
+      
+      // Fetch user display names from auth.users table
+      Map<String, String> userDisplayNames = {};
       
       if (userIds.isNotEmpty) {
         try {
           final profilesResponse = await _supabase
               .from('user_profiles')
               .select('id, display_name')
-              .inFilter('id', userIds);
+              .inFilter('id', userIds.toList());
           
           for (var profile in profilesResponse) {
-            userProfiles[profile['id']] = profile['display_name'] ?? 'Anonymous User';
+            userDisplayNames[profile['id']] = profile['display_name'] ?? 'User';
+          }
+          
+          // For users without profiles, use fallback
+          for (String userId in userIds) {
+            if (!userDisplayNames.containsKey(userId)) {
+              userDisplayNames[userId] = 'User';
+            }
           }
         } catch (e) {
-          print('Failed to fetch user profiles: $e');
+          print('Failed to fetch user display names: $e');
+          // Continue without display names - use fallback
+          for (String userId in userIds) {
+            userDisplayNames[userId] = 'User';
+          }
         }
       }
 
-      // For each complaint, assign the user name
+      // For each complaint, assign the user display name
       List<Map<String, dynamic>> complaintsWithUsers = [];
-      final currentUser = _supabase.auth.currentUser;
-      
       for (var complaint in response) {
-        final userId = complaint['user_id'];
+        String userId = complaint['user_id'];
+        String userName = userDisplayNames[userId] ?? 'User';
         
-        // If it's the current user's complaint, use their info
-        if (currentUser != null && userId == currentUser.id) {
-          // Use display_name if available, otherwise fall back to email username
-          final displayName = currentUser.userMetadata?['display_name'] as String?;
-          complaint['user_name'] = displayName ?? currentUser.email?.split('@')[0] ?? 'You';
-          complaint['user_email'] = currentUser.email;
-        } else {
-          // For other users, use the fetched profile data
-          complaint['user_name'] = userProfiles[userId] ?? 'Anonymous User';
-          complaint['user_email'] = null;
-        }
-        
-        complaintsWithUsers.add(complaint);
+        complaintsWithUsers.add({
+          ...complaint,
+          'user_name': userName,
+        });
       }
 
 
@@ -154,8 +139,15 @@ class _FeedScreenState extends State<FeedScreen> {
     
     final userLocation = LocationService.getCachedPosition();
     if (userLocation == null) {
+      // Show message that location is required for filtering
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Location permission required for distance filtering'),
+          backgroundColor: Colors.orange,
+        ),
+      );
       setState(() {
-        _filteredComplaints = _complaints;
+        _filteredComplaints = _complaints; // Show all if no location
       });
       return;
     }
@@ -242,18 +234,15 @@ class _FeedScreenState extends State<FeedScreen> {
                           size: 20,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          'Filter by distance:',
-                          style: AppTheme.bodyMedium.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                      const SizedBox(width: 12),
+                      Text(
+                        'Filter by distance:',
+                        style: AppTheme.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 16),
                       Expanded(
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -412,15 +401,29 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
     final lon = widget.complaint['location_long'] as double?;
     
     if (lat != null && lon != null) {
-      final distance = LocationService.getDistanceFromCurrent(lat, lon);
+      final userLocation = LocationService.getCachedPosition();
+      if (userLocation != null) {
+        final distance = LocationService.getDistanceFromCurrent(lat, lon);
+        if (mounted) {
+          setState(() {
+            _distance = distance;
+          });
+        }
+      } else {
+        // No user location available
+        if (mounted) {
+          setState(() {
+            _distance = null;
+          });
+        }
+      }
+    } else {
+      // Set distance to null if no coordinates available
       if (mounted) {
         setState(() {
-          _distance = distance;
+          _distance = null;
         });
       }
-      print('Distance calculated for complaint: $distance');
-    } else {
-      print('No coordinates available for complaint');
     }
   }
 
@@ -792,32 +795,106 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                            _rateSeverity();
-                          },
-                          child: Text('Update Rating'),
+                        const SizedBox(height: 12),
+                        // Rating buttons for updating existing rating
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: List.generate(5, (index) {
+                            int rating = index + 1;
+                            bool isSelected = _userSeverityRating == rating;
+                            return InkWell(
+                              onTap: () => _updateSeverity(rating),
+                              borderRadius: BorderRadius.circular(25),
+                              child: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: isSelected 
+                                      ? _getSeverityColor(rating).withOpacity(0.2)
+                                      : Colors.grey.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(25),
+                                  border: Border.all(
+                                    color: isSelected 
+                                        ? _getSeverityColor(rating)
+                                        : Colors.grey.withOpacity(0.3),
+                                    width: isSelected ? 2 : 1,
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    rating.toString(),
+                                    style: TextStyle(
+                                      color: isSelected 
+                                          ? _getSeverityColor(rating)
+                                          : Colors.grey[600],
+                                      fontWeight: isSelected 
+                                          ? FontWeight.bold 
+                                          : FontWeight.w500,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
                         ),
-                      ] else ...[
+                        const SizedBox(height: 8),
                         Text(
-                          (_isLiked || _isDisliked) 
-                              ? 'You haven\'t rated severity yet'
-                              : 'Like or dislike first to rate severity',
+                          'Tap to update your rating',
                           style: AppTheme.bodySmall.copyWith(
                             color: AppTheme.textSecondary,
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        if (_isLiked || _isDisliked) ...[
-                          const SizedBox(height: 8),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              _rateSeverity();
-                            },
-                            child: Text('Rate Severity'),
+                      ] else ...[
+                        // Rating buttons (1-5) for users who haven't rated yet
+                        if (_isLiked) ...[
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: List.generate(5, (index) {
+                              int rating = index + 1;
+                              return InkWell(
+                                onTap: () => _updateSeverity(rating),
+                                borderRadius: BorderRadius.circular(25),
+                                child: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(25),
+                                    border: Border.all(
+                                      color: Colors.grey.withOpacity(0.3),
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      rating.toString(),
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Tap a number to rate severity',
+                            style: AppTheme.bodySmall.copyWith(
+                              color: AppTheme.textSecondary,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ] else ...[
+                          Text(
+                            'Like the complaint first to rate severity',
+                            style: AppTheme.bodySmall.copyWith(
+                              color: AppTheme.textSecondary,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
                         ],
                       ],
@@ -863,6 +940,7 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
       await _loadVerificationStatus();
 
       if (mounted) {
+        Navigator.of(context).pop(); // Close the dialog after rating
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Severity rating updated: $severity/5'),
@@ -1000,15 +1078,12 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                             color: Colors.grey[600],
                           ),
                           const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              userName,
-                              style: TextStyle(
-                                color: Colors.grey[700],
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
+                          Text(
+                            userName,
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -1071,76 +1146,33 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
               ),
             ),
 
-          // Media (Image/Video)
-          if (widget.complaint['picture_url'] != null)
+          // Media (Image/Video) - Placeholder for now
+          if (widget.complaint['picture_url'] != null || widget.complaint['video_url'] != null)
             Container(
               margin: const EdgeInsets.all(16),
               height: 200,
               decoration: BoxDecoration(
+                color: Colors.grey[200],
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  widget.complaint['picture_url'],
-                  width: double.infinity,
-                  height: 200,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Container(
-                      color: Colors.grey[200],
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                        ),
+              child: const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.image,
+                      size: 48,
+                      color: Colors.grey,
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Media content',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
                       ),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: Colors.grey[200],
-                      child: const Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.broken_image,
-                              size: 48,
-                              color: Colors.grey,
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              'Failed to load image',
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-
-          // Video Player
-          if (widget.complaint['video_url'] != null)
-            Container(
-              margin: const EdgeInsets.all(16),
-              height: 200,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: VideoPlayerWidget(
-                  videoUrl: widget.complaint['video_url'],
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1202,15 +1234,12 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                         color: Colors.blue[600],
                       ),
                       const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          _distance!,
-                          style: TextStyle(
-                            color: Colors.blue[600],
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                      Text(
+                        _distance!,
+                        style: TextStyle(
+                          color: Colors.blue[600],
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -1262,53 +1291,6 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                 ),
                 const SizedBox(width: 12),
                 
-                // Severity rating button (only show if user has liked, not disliked)
-                if (_isLiked && !_isLoading)
-                  InkWell(
-                    onTap: _rateSeverity,
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: _userSeverityRating != null 
-                            ? _getSeverityColor(_userSeverityRating!).withOpacity(0.1)
-                            : AppTheme.primaryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: _userSeverityRating != null 
-                              ? _getSeverityColor(_userSeverityRating!)
-                              : AppTheme.primaryColor.withOpacity(0.3),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _userSeverityRating != null ? Icons.star : Icons.star_outline,
-                            size: 16,
-                            color: _userSeverityRating != null 
-                                ? _getSeverityColor(_userSeverityRating!)
-                                : AppTheme.primaryColor,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            _userSeverityRating != null 
-                                ? '$_userSeverityRating/5'
-                                : 'Rate',
-                            style: TextStyle(
-                              color: _userSeverityRating != null 
-                                  ? _getSeverityColor(_userSeverityRating!)
-                                  : AppTheme.primaryColor,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                
-                if (_isLiked && !_isLoading) const SizedBox(width: 12),
                 
                 // Dislike button
                 InkWell(
@@ -1347,6 +1329,51 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                 const SizedBox(width: 12),
                 
                 
+                // Overall Severity display (clickable to rate/update)
+                InkWell(
+                  onTap: _showOverallSeverityDialog,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _averageSeverity != null 
+                          ? _getSeverityColor(_averageSeverity!.round()).withOpacity(0.1)
+                          : Colors.grey.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: _averageSeverity != null 
+                            ? _getSeverityColor(_averageSeverity!.round())
+                            : Colors.grey.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.analytics_outlined,
+                          size: 16,
+                          color: _averageSeverity != null 
+                              ? _getSeverityColor(_averageSeverity!.round())
+                              : Colors.grey,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _averageSeverity != null 
+                              ? '${_averageSeverity!.toStringAsFixed(1)}/5 (${_severityVoteCount})'
+                              : 'No ratings',
+                          style: TextStyle(
+                            color: _averageSeverity != null 
+                                ? _getSeverityColor(_averageSeverity!.round())
+                                : Colors.grey,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                
                 const Spacer(),
                 
                 // Loading indicator
@@ -1379,117 +1406,5 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
     } else {
       return 'Just now';
     }
-  }
-}
-
-// Video Player Widget for Feed Screen
-class VideoPlayerWidget extends StatefulWidget {
-  final String videoUrl;
-
-  const VideoPlayerWidget({super.key, required this.videoUrl});
-
-  @override
-  State<VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
-}
-
-class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
-  VideoPlayerController? _controller;
-  bool _isInitialized = false;
-  bool _hasError = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeVideoPlayer();
-  }
-
-  Future<void> _initializeVideoPlayer() async {
-    try {
-      _controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
-      await _controller!.initialize();
-      setState(() {
-        _isInitialized = true;
-      });
-    } catch (e) {
-      setState(() {
-        _hasError = true;
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_hasError) {
-      return Container(
-        color: Colors.grey[200],
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.error_outline,
-                size: 48,
-                color: Colors.grey,
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Failed to load video',
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (!_isInitialized) {
-      return Container(
-        color: Colors.grey[200],
-        child: const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        AspectRatio(
-          aspectRatio: _controller!.value.aspectRatio,
-          child: VideoPlayer(_controller!),
-        ),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.3),
-            shape: BoxShape.circle,
-          ),
-          child: IconButton(
-            onPressed: () {
-              setState(() {
-                if (_controller!.value.isPlaying) {
-                  _controller!.pause();
-                } else {
-                  _controller!.play();
-                }
-              });
-            },
-            icon: Icon(
-              _controller!.value.isPlaying ? Icons.pause : Icons.play_arrow,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-        ),
-      ],
-    );
   }
 }
