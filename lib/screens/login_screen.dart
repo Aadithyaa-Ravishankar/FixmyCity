@@ -73,18 +73,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   }
 
   Future<void> _handleLogin() async {
-    final passwordResult = await AuthService.authenticateWithPassword(
-      _emailController.text, 
-      _passwordController.text, 
-      'email'
-    );
-    
-    if (passwordResult['success'] == true) {
-      _showSuccessMessage('Login successful!');
-      Navigator.pushReplacementNamed(context, '/home');
-      return;
-    }
-    
+    // Always send OTP for login instead of trying password first
     final result = await AuthService.sendOTPToEmail(_emailController.text);
     _navigateToOTP('email', _emailController.text, result);
   }
@@ -159,7 +148,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Welcome to Fix My City',
+                    'Welcome to FixmyCity',
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,

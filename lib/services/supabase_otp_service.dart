@@ -17,7 +17,7 @@ class SupabaseOTPService {
         'send-email',
         body: {
           'email': email,
-          'subject': 'Your Fix My City OTP Code',
+          'subject': 'Your FixmyCity OTP Code',
           'message': 'Your OTP code is: $otp. This code will expire in 5 minutes. Please enter this code in the app to verify your email address.',
           'otp': otp,
         },
@@ -32,10 +32,13 @@ class SupabaseOTPService {
   // Send email OTP using Supabase native auth with updated template
   static Future<Map<String, dynamic>> sendOTPToEmail(String email) async {
     try {
-      // Use Supabase native OTP - now configured to send OTP tokens via updated email template
+      // Use signInWithOtp with specific configuration to force OTP tokens
       await _supabase.auth.signInWithOtp(
         email: email,
         shouldCreateUser: true,
+        data: {
+          'type': 'email_otp', // Explicitly specify OTP type
+        },
       );
       
       return {
@@ -45,7 +48,14 @@ class SupabaseOTPService {
       };
     } catch (e) {
       print('Error sending Supabase native OTP: $e');
-      throw Exception('Failed to send email OTP: $e');
+      
+      // Fallback to custom OTP if Supabase native fails
+      try {
+        return await _sendCustomOTPToEmail(email);
+      } catch (fallbackError) {
+        print('Custom OTP fallback also failed: $fallbackError');
+        throw Exception('Failed to send email OTP: $e');
+      }
     }
   }
 

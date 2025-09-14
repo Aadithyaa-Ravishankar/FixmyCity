@@ -54,7 +54,7 @@ serve(async (req) => {
             html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px; text-align: center; margin-bottom: 20px;">
-                  <h1 style="color: white; margin: 0; font-size: 28px;">Fix My City</h1>
+                  <h1 style="color: white; margin: 0; font-size: 28px;">FixmyCity</h1>
                   <p style="color: white; margin: 10px 0 0 0; opacity: 0.9;">Email Verification</p>
                 </div>
                 
@@ -69,7 +69,7 @@ serve(async (req) => {
                 
                 <div style="text-align: center; margin-top: 20px; padding: 20px; color: #999; font-size: 12px;">
                   <p>If you didn't request this code, please ignore this email.</p>
-                  <p>© 2024 Fix My City. All rights reserved.</p>
+                  <p>© 2024 FixmyCity. All rights reserved.</p>
                 </div>
               </div>
             `,
