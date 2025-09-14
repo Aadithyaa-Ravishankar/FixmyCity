@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:video_player/video_player.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
 import '../services/geocoding_service.dart';
 import '../services/location_service.dart';
@@ -13,7 +17,7 @@ class FeedScreen extends StatefulWidget {
   State<FeedScreen> createState() => _FeedScreenState();
 }
 
-class _FeedScreenState extends State<FeedScreen> {
+class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
   final SupabaseClient _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _complaints = [];
   List<Map<String, dynamic>> _filteredComplaints = [];
@@ -27,11 +31,68 @@ class _FeedScreenState extends State<FeedScreen> {
     {'label': '1km', 'value': 1000.0},
   ];
 
+  // Scroll and animation variables
+  final ScrollController _scrollController = ScrollController();
+  AnimationController? _filterAnimationController;
+  Animation<double>? _filterAnimation;
+  bool _isFilterVisible = true;
+  double _lastScrollOffset = 0;
+
   @override
   void initState() {
     super.initState();
     _initializeLocation();
     _fetchComplaints();
+    _setupScrollAnimation();
+  }
+
+  void _setupScrollAnimation() {
+    _filterAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    _filterAnimation = Tween<double>(
+      begin: 0.0,
+      end: -80.0,
+    ).animate(CurvedAnimation(
+      parent: _filterAnimationController!,
+      curve: Curves.easeOut,
+    ));
+
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    final currentOffset = _scrollController.offset;
+    final scrollDelta = currentOffset - _lastScrollOffset;
+
+    // Debug print to see scroll behavior
+    print('Scroll delta: $scrollDelta, Filter visible: $_isFilterVisible');
+
+    if (scrollDelta > 5 && _isFilterVisible && currentOffset > 50) {
+      // Scrolling down - hide filter
+      print('Hiding filter');
+      setState(() {
+        _isFilterVisible = false;
+      });
+      _filterAnimationController?.forward();
+    } else if (scrollDelta < -5 && !_isFilterVisible) {
+      // Scrolling up - show filter
+      print('Showing filter');
+      setState(() {
+        _isFilterVisible = true;
+      });
+      _filterAnimationController?.reverse();
+    }
+
+    _lastScrollOffset = currentOffset;
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _filterAnimationController?.dispose();
+    super.dispose();
   }
 
   Future<void> _initializeLocation() async {
@@ -186,93 +247,82 @@ class _FeedScreenState extends State<FeedScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
-      appBar: AppBar(
-        title: Text(
-          'FixmyCity',
-          style: AppTheme.headingMedium.copyWith(color: Colors.white),
-        ),
-        backgroundColor: AppTheme.primaryColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: false,
-        automaticallyImplyLeading: false,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: AppTheme.primaryGradient,
+      backgroundColor: AppTheme.getBackgroundColor(context),
+      body: Stack(
+        children: [
+          // Main content with padding for floating app bar
+          Padding(
+            padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 86),
+            child: _buildMainContent(),
           ),
-        ),
-      ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
-          : Column(
-              children: [
-                // Distance Filter Section
-                Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.all(16),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.surfaceColor,
-                    borderRadius: AppTheme.largeRadius,
-                    boxShadow: [AppTheme.cardShadow],
-                    border: Border.all(color: AppTheme.borderLight.withOpacity(0.5)),
+          // Floating pill-shaped app bar
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            left: 8,
+            right: 8,
+            child: Container(
+              height: 70,
+              decoration: BoxDecoration(
+                gradient: AppTheme.primaryGradient,
+                borderRadius: AppTheme.largeRadius,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.primaryColor.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
                   ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.filter_list,
-                          color: AppTheme.primaryColor,
-                          size: 20,
-                        ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Text(
+                      'FixmyCity',
+                      style: AppTheme.headingMedium.copyWith(
+                        color: Colors.white,
+                        fontSize: 20,
                       ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Filter by distance:',
-                        style: AppTheme.bodyMedium.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
-                        ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.white.withOpacity(0.3)),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppTheme.backgroundColor,
-                            borderRadius: BorderRadius.circular(25),
-                            border: Border.all(color: AppTheme.borderLight),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.filter_list,
+                            color: Colors.white,
+                            size: 14,
                           ),
-                          child: DropdownButtonHideUnderline(
+                          const SizedBox(width: 4),
+                          DropdownButtonHideUnderline(
                             child: DropdownButton<double>(
                               value: _selectedDistance,
                               onChanged: _onDistanceChanged,
-                              isExpanded: true,
-                              dropdownColor: AppTheme.surfaceColor,
-                              style: AppTheme.bodyMedium.copyWith(
-                                color: AppTheme.textPrimary,
+                              dropdownColor: AppTheme.primaryColor,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w500,
                               ),
-                              icon: Icon(
+                              icon: const Icon(
                                 Icons.keyboard_arrow_down,
-                                color: AppTheme.primaryColor,
-                                size: 20,
+                                color: Colors.white,
+                                size: 12,
                               ),
                               items: _distanceOptions.map((option) {
                                 return DropdownMenuItem<double>(
                                   value: option['value'],
                                   child: Text(
                                     option['label'],
-                                    style: AppTheme.bodyMedium.copyWith(
-                                      color: AppTheme.textPrimary,
+                                    style: AppTheme.bodySmall.copyWith(
+                                      color: Colors.white,
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
@@ -280,77 +330,73 @@ class _FeedScreenState extends State<FeedScreen> {
                               }).toList(),
                             ),
                           ),
-                        ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          gradient: AppTheme.primaryGradient,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          _selectedDistance == null 
-                              ? '${_filteredComplaints.length} total'
-                              : '${_filteredComplaints.length} nearby',
-                          style: AppTheme.bodySmall.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainContent() {
+    return _isLoading
+        ? const Center(
+            child: CircularProgressIndicator(),
+          )
+        : RefreshIndicator(
+            onRefresh: _refreshComplaints,
+            child: _filteredComplaints.isEmpty
+                ? ListView(
+                    padding: const EdgeInsets.fromLTRB(8, 16, 8, 86),
+                    children: [
+                      // Empty state
+                      SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.6,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.report_outlined,
+                              size: 64,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _complaints.isEmpty ? 'No complaints yet' : 'No complaints in selected area',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                color: Colors.grey,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _complaints.isEmpty ? 'Be the first to report an issue!' : 'Try increasing the distance filter',
+                              style: const TextStyle(
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
+                  )
+                : ListView.builder(
+                    itemCount: _filteredComplaints.length,
+                    padding: const EdgeInsets.fromLTRB(8, 16, 8, 86),
+                    itemBuilder: (context, index) {
+                      final complaint = _filteredComplaints[index];
+                      return ComplaintPostCard(
+                        complaint: complaint,
+                      );
+                    },
                   ),
-                ),
-                // Feed Content
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: _refreshComplaints,
-                    child: _filteredComplaints.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.report_outlined,
-                                  size: 64,
-                                  color: Colors.grey,
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  _complaints.isEmpty ? 'No complaints yet' : 'No complaints in selected area',
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    color: Colors.grey,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _complaints.isEmpty ? 'Be the first to report an issue!' : 'Try increasing the distance filter',
-                                  style: const TextStyle(
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : ListView.builder(
-                            itemCount: _filteredComplaints.length,
-                            padding: const EdgeInsets.all(16),
-                            itemBuilder: (context, index) {
-                              final complaint = _filteredComplaints[index];
-                              return ComplaintPostCard(
-                                key: ValueKey(complaint['complaint_id']),
-                                complaint: complaint,
-                              );
-                            },
-                          ),
-                  ),
-                ),
-              ],
-            ),
-    );
+          );
   }
 }
 
@@ -699,7 +745,7 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: AppTheme.surfaceColor,
+              color: AppTheme.getSurfaceColor(context),
               borderRadius: AppTheme.largeRadius,
               boxShadow: [
                 BoxShadow(
@@ -739,7 +785,7 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                           Text(
                             'Overall Severity',
                             style: AppTheme.headingSmall.copyWith(
-                              color: AppTheme.textPrimary,
+                              color: AppTheme.getTextPrimary(context),
                             ),
                           ),
                           Text(
@@ -747,7 +793,7 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                                 ? '${_averageSeverity!.toStringAsFixed(1)}/5 (${_severityVoteCount} votes)'
                                 : 'No severity ratings yet',
                             style: AppTheme.bodySmall.copyWith(
-                              color: AppTheme.textSecondary,
+                              color: AppTheme.getTextSecondary(context),
                             ),
                           ),
                         ],
@@ -761,16 +807,16 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppTheme.backgroundColor,
+                    color: AppTheme.getBackgroundColor(context),
                     borderRadius: AppTheme.mediumRadius,
-                    border: Border.all(color: AppTheme.borderLight),
+                    border: Border.all(color: AppTheme.getBorderLight(context)),
                   ),
                   child: Column(
                     children: [
                       Text(
                         'Your Rating',
                         style: AppTheme.labelLarge.copyWith(
-                          color: AppTheme.textPrimary,
+                          color: AppTheme.getTextPrimary(context),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -797,8 +843,9 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                         ),
                         const SizedBox(height: 12),
                         // Rating buttons for updating existing rating
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        Wrap(
+                          alignment: WrapAlignment.spaceEvenly,
+                          spacing: 4,
                           children: List.generate(5, (index) {
                             int rating = index + 1;
                             bool isSelected = _userSeverityRating == rating;
@@ -806,8 +853,8 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                               onTap: () => _updateSeverity(rating),
                               borderRadius: BorderRadius.circular(25),
                               child: Container(
-                                width: 40,
-                                height: 40,
+                                width: 35,
+                                height: 35,
                                 decoration: BoxDecoration(
                                   color: isSelected 
                                       ? _getSeverityColor(rating).withOpacity(0.2)
@@ -817,7 +864,7 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                                     color: isSelected 
                                         ? _getSeverityColor(rating)
                                         : Colors.grey.withOpacity(0.3),
-                                    width: isSelected ? 2 : 1,
+                                    width: 1,
                                   ),
                                 ),
                                 child: Center(
@@ -826,11 +873,9 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                                     style: TextStyle(
                                       color: isSelected 
                                           ? _getSeverityColor(rating)
-                                          : Colors.grey[600],
-                                      fontWeight: isSelected 
-                                          ? FontWeight.bold 
-                                          : FontWeight.w500,
-                                      fontSize: 16,
+                                          : Colors.grey,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                 ),
@@ -842,7 +887,7 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                         Text(
                           'Tap to update your rating',
                           style: AppTheme.bodySmall.copyWith(
-                            color: AppTheme.textSecondary,
+                            color: AppTheme.getTextSecondary(context),
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -884,7 +929,7 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                           Text(
                             'Tap a number to rate severity',
                             style: AppTheme.bodySmall.copyWith(
-                              color: AppTheme.textSecondary,
+                              color: AppTheme.getTextSecondary(context),
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -892,7 +937,7 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                           Text(
                             'Like the complaint first to rate severity',
                             style: AppTheme.bodySmall.copyWith(
-                              color: AppTheme.textSecondary,
+                              color: AppTheme.getTextSecondary(context),
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -920,12 +965,7 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
     final currentUser = _supabase.auth.currentUser;
     if (currentUser == null) return;
 
-    setState(() {
-      _isLoading = true;
-    });
-
     try {
-      // Update the existing verification record with severity
       await _supabase
           .from('verification')
           .update({'severity': severity})
@@ -936,31 +976,48 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
         _userSeverityRating = severity;
       });
 
-      // Reload verification status to update average severity
+      // Reload verification status to update average
       await _loadVerificationStatus();
-
+      
+      // Close the dialog if it's open
       if (mounted) {
-        Navigator.of(context).pop(); // Close the dialog after rating
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Severity rating updated: $severity/5'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        Navigator.of(context).pop();
       }
     } catch (e) {
+      print('Error updating severity: $e');
+    }
+  }
+
+  Future<void> _openInGoogleMaps() async {
+    final latitude = widget.complaint['location_lat'];
+    final longitude = widget.complaint['location_long'];
+    
+    if (latitude != null && longitude != null) {
+      final url = 'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude';
+      final uri = Uri.parse(url);
+      
+      try {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } catch (e) {
+        print('Error opening Google Maps: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not open Google Maps'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error updating severity: $e'),
-            backgroundColor: Colors.red,
+          const SnackBar(
+            content: Text('Location coordinates not available'),
+            backgroundColor: Colors.orange,
           ),
         );
       }
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
     }
   }
 
@@ -1035,12 +1092,12 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
     final userName = widget.complaint['user_name'] ?? 'Anonymous';
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: AppTheme.spacingM, vertical: AppTheme.spacingS),
+      margin: const EdgeInsets.only(bottom: AppTheme.spacingS),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceColor,
+        color: AppTheme.getSurfaceColor(context),
         borderRadius: AppTheme.largeRadius,
         boxShadow: const [AppTheme.cardShadow],
-        border: Border.all(color: AppTheme.borderLight),
+        border: Border.all(color: AppTheme.getBorderLight(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1049,6 +1106,7 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
           Padding(
             padding: const EdgeInsets.all(AppTheme.spacingM),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
                   padding: const EdgeInsets.all(AppTheme.spacingS),
@@ -1066,45 +1124,45 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        category ?? 'General Issue',
-                        style: AppTheme.labelLarge,
-                      ),
                       Row(
                         children: [
                           Icon(
                             Icons.person,
-                            size: 12,
-                            color: Colors.grey[600],
+                            size: 14,
+                            color: AppTheme.getTextSecondary(context),
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            userName,
-                            style: TextStyle(
-                              color: Colors.grey[700],
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '• $timeAgo',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              userName,
+                              style: TextStyle(
+                                color: AppTheme.getTextPrimary(context),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 4),
+                      Text(
+                        timeAgo,
+                        style: TextStyle(
+                          color: AppTheme.getTextSecondary(context),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: _getStatusColor(status).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: _getStatusColor(status).withOpacity(0.3),
                     ),
@@ -1114,7 +1172,7 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                     children: [
                       Icon(
                         _getStatusIcon(status),
-                        size: 14,
+                        size: 12,
                         color: _getStatusColor(status),
                       ),
                       const SizedBox(width: 4),
@@ -1122,7 +1180,7 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                         status.toUpperCase(),
                         style: TextStyle(
                           color: _getStatusColor(status),
-                          fontSize: 10,
+                          fontSize: 9,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -1133,116 +1191,128 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
             ),
           ),
 
+          // Category
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              category ?? 'General Issue',
+              style: AppTheme.labelLarge.copyWith(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.getTextPrimary(context),
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(height: 8),
+
           // Description
           if (description.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
                 description,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   height: 1.4,
+                  color: AppTheme.getTextPrimary(context),
                 ),
               ),
             ),
 
-          // Media (Image/Video) - Placeholder for now
+          // Media (Image/Video)
           if (widget.complaint['picture_url'] != null || widget.complaint['video_url'] != null)
             Container(
               margin: const EdgeInsets.all(16),
-              height: 200,
-              decoration: BoxDecoration(
-                color: Colors.grey[200],
+              child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.image,
-                      size: 48,
-                      color: Colors.grey,
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Media content',
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
+                child: widget.complaint['video_url'] != null
+                    ? ComplaintVideoPlayer(videoUrl: widget.complaint['video_url'])
+                    : ComplaintImageViewer(imageUrl: widget.complaint['picture_url']),
               ),
             ),
+
 
           // Location info
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
               children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.location_on_outlined,
-                      size: 16,
-                      color: Colors.grey[600],
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: _isLoadingAddress
-                          ? Row(
-                              children: [
-                                SizedBox(
-                                  width: 12,
-                                  height: 12,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 1.5,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Loading location...',
+                InkWell(
+                  onTap: _openInGoogleMaps,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.location_on_outlined,
+                          size: 16,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: _isLoadingAddress
+                              ? Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 12,
+                                      height: 12,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 1.5,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Loading location...',
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Text(
+                                  _address,
                                   style: TextStyle(
                                     color: Colors.grey[600],
                                     fontSize: 12,
                                   ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ],
-                            )
-                          : Text(
-                              _address,
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 12,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
                 if (_distance != null) ...[
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.near_me_outlined,
-                        size: 14,
-                        color: Colors.blue[600],
+                  InkWell(
+                    onTap: _openInGoogleMaps,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.near_me_outlined,
+                            size: 14,
+                            color: Colors.blue[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _distance!,
+                            style: TextStyle(
+                              color: Colors.blue[600],
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        _distance!,
-                        style: TextStyle(
-                          color: Colors.blue[600],
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
               ],
@@ -1253,7 +1323,10 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
           // Like/Dislike buttons
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.start,
               children: [
                 // Like button
                 InkWell(
@@ -1289,8 +1362,6 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                
                 
                 // Dislike button
                 InkWell(
@@ -1326,8 +1397,6 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                
                 
                 // Overall Severity display (clickable to rate/update)
                 InkWell(
@@ -1357,24 +1426,25 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                               : Colors.grey,
                         ),
                         const SizedBox(width: 4),
-                        Text(
-                          _averageSeverity != null 
-                              ? '${_averageSeverity!.toStringAsFixed(1)}/5 (${_severityVoteCount})'
-                              : 'No ratings',
-                          style: TextStyle(
-                            color: _averageSeverity != null 
-                                ? _getSeverityColor(_averageSeverity!.round())
-                                : Colors.grey,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                        Flexible(
+                          child: Text(
+                            _averageSeverity != null 
+                                ? '${_averageSeverity!.toStringAsFixed(1)}/5 (${_severityVoteCount})'
+                                : 'No ratings',
+                            style: TextStyle(
+                              color: _averageSeverity != null 
+                                  ? _getSeverityColor(_averageSeverity!.round())
+                                  : Colors.grey,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                
-                const Spacer(),
                 
                 // Loading indicator
                 if (_isLoading)
@@ -1406,5 +1476,198 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
     } else {
       return 'Just now';
     }
+  }
+}
+
+class ComplaintImageViewer extends StatelessWidget {
+  final String imageUrl;
+
+  const ComplaintImageViewer({super.key, required this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: CachedNetworkImage(
+        imageUrl: imageUrl,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(
+          color: Colors.grey[200],
+          child: const Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
+        errorWidget: (context, url, error) => Container(
+          color: Colors.grey[200],
+          child: const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.broken_image,
+                  size: 48,
+                  color: Colors.grey,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Failed to load image',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ComplaintVideoPlayer extends StatefulWidget {
+  final String videoUrl;
+
+  const ComplaintVideoPlayer({super.key, required this.videoUrl});
+
+  @override
+  State<ComplaintVideoPlayer> createState() => _ComplaintVideoPlayerState();
+}
+
+class _ComplaintVideoPlayerState extends State<ComplaintVideoPlayer> {
+  VideoPlayerController? _controller;
+  bool _isInitialized = false;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeVideo();
+  }
+
+  Future<void> _initializeVideo() async {
+    try {
+      _controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+      await _controller!.initialize();
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_hasError) {
+      return AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Container(
+          color: Colors.grey[200],
+          child: const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: Colors.grey,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Failed to load video',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (!_isInitialized || _controller == null) {
+      return AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Container(
+          color: Colors.grey[200],
+          child: const Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
+
+    return AspectRatio(
+      aspectRatio: _controller!.value.aspectRatio,
+      child: Stack(
+        children: [
+          VideoPlayer(_controller!),
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  if (_controller!.value.isPlaying) {
+                    _controller!.pause();
+                  } else {
+                    _controller!.play();
+                  }
+                });
+              },
+              child: Container(
+                color: Colors.transparent,
+                child: Center(
+                  child: AnimatedOpacity(
+                    opacity: _controller!.value.isPlaying ? 0.0 : 1.0,
+                    duration: const Duration(milliseconds: 300),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Icon(
+                        _controller!.value.isPlaying ? Icons.pause : Icons.play_arrow,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Video progress indicator
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: VideoProgressIndicator(
+              _controller!,
+              allowScrubbing: true,
+              colors: VideoProgressColors(
+                playedColor: AppTheme.primaryColor,
+                bufferedColor: Colors.grey.withOpacity(0.3),
+                backgroundColor: Colors.grey.withOpacity(0.1),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

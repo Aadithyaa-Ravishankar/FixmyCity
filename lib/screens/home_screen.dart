@@ -23,75 +23,86 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
-      body: _screens[_currentIndex],
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: AppTheme.surfaceColor,
-          boxShadow: [AppTheme.elevatedShadow],
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
-          ),
-        ),
-        child: ClipRRect(
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
-          ),
-          child: BottomNavigationBar(
-            currentIndex: _currentIndex,
-            onTap: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-            },
-            type: BottomNavigationBarType.fixed,
-            backgroundColor: AppTheme.surfaceColor,
-            selectedItemColor: AppTheme.primaryColor,
-            unselectedItemColor: AppTheme.textTertiary,
-            selectedLabelStyle: AppTheme.labelMedium.copyWith(
-              color: AppTheme.primaryColor,
-              fontWeight: FontWeight.w600,
+      backgroundColor: AppTheme.getBackgroundColor(context),
+      body: Stack(
+        children: [
+          _screens[_currentIndex],
+          // Floating bottom navigation bar
+          Positioned(
+            bottom: 8,
+            left: 8,
+            right: 8,
+            child: Container(
+              height: 70,
+              decoration: BoxDecoration(
+                color: AppTheme.getSurfaceColor(context),
+                borderRadius: AppTheme.largeRadius,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+                border: Border.all(
+                  color: AppTheme.getBorderLight(context),
+                  width: 0.5,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildNavItem(0, Icons.home_outlined, Icons.home, 'Feed'),
+                  _buildNavItem(1, Icons.add_circle_outline, Icons.add_circle, 'Report'),
+                  _buildNavItem(2, Icons.person_outline, Icons.person, 'Profile'),
+                ],
+              ),
             ),
-            unselectedLabelStyle: AppTheme.labelMedium,
-            elevation: 0,
-            items: const [
-              BottomNavigationBarItem(
-                icon: Padding(
-                  padding: EdgeInsets.only(bottom: 4),
-                  child: Icon(Icons.home_outlined, size: 24),
-                ),
-                activeIcon: Padding(
-                  padding: EdgeInsets.only(bottom: 4),
-                  child: Icon(Icons.home, size: 24),
-                ),
-                label: 'Feed',
-              ),
-              BottomNavigationBarItem(
-                icon: Padding(
-                  padding: EdgeInsets.only(bottom: 4),
-                  child: Icon(Icons.add_circle_outline, size: 24),
-                ),
-                activeIcon: Padding(
-                  padding: EdgeInsets.only(bottom: 4),
-                  child: Icon(Icons.add_circle, size: 24),
-                ),
-                label: 'Report',
-              ),
-              BottomNavigationBarItem(
-                icon: Padding(
-                  padding: EdgeInsets.only(bottom: 4),
-                  child: Icon(Icons.person_outline, size: 24),
-                ),
-                activeIcon: Padding(
-                  padding: EdgeInsets.only(bottom: 4),
-                  child: Icon(Icons.person, size: 24),
-                ),
-                label: 'Profile',
-              ),
-            ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData icon, IconData activeIcon, String label) {
+    final isSelected = _currentIndex == index;
+    
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _currentIndex = index;
+        });
+      },
+      child: Container(
+        width: MediaQuery.of(context).size.width / 3 - 16,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected 
+              ? AppTheme.primaryColor.withOpacity(0.1)
+              : Colors.transparent,
+          borderRadius: AppTheme.largeRadius,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? activeIcon : icon,
+              color: isSelected 
+                  ? AppTheme.primaryColor 
+                  : AppTheme.getTextTertiary(context),
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: AppTheme.bodySmall.copyWith(
+                color: isSelected 
+                    ? AppTheme.primaryColor 
+                    : AppTheme.getTextTertiary(context),
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
     );

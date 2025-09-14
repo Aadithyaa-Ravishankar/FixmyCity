@@ -15,19 +15,37 @@ class AppTheme {
   static const Color errorColor = Color(0xFFEF4444); // Red
   static const Color successColor = Color(0xFF10B981); // Green
   
-  // Neutral Colors
-  static const Color backgroundColor = Color(0xFFF8FAFC);
-  static const Color surfaceColor = Color(0xFFFFFFFF);
-  static const Color cardColor = Color(0xFFFFFFFF);
+  // Light Theme Colors
+  static const Color lightBackgroundColor = Color(0xFFF8FAFC);
+  static const Color lightSurfaceColor = Color(0xFFFFFFFF);
+  static const Color lightCardColor = Color(0xFFFFFFFF);
+  static const Color lightTextPrimary = Color(0xFF1E293B);
+  static const Color lightTextSecondary = Color(0xFF64748B);
+  static const Color lightTextTertiary = Color(0xFF94A3B8);
+  static const Color lightBorderLight = Color(0xFFE2E8F0);
+  static const Color lightBorderMedium = Color(0xFFCBD5E1);
   
-  // Text Colors
-  static const Color textPrimary = Color(0xFF1E293B);
-  static const Color textSecondary = Color(0xFF64748B);
-  static const Color textTertiary = Color(0xFF94A3B8);
+  // Dark Theme Colors
+  static const Color darkBackgroundColor = Color(0xFF000000);
+  static const Color darkSurfaceColor = Color(0xFF1A1A1A);
+  static const Color darkCardColor = Color(0xFF2A2A2A);
+  static const Color darkTextPrimary = Color(0xFFFFFFFF);
+  static const Color darkTextSecondary = Color(0xFFB3B3B3);
+  static const Color darkTextTertiary = Color(0xFF808080);
+  static const Color darkBorderLight = Color(0xFF404040);
+  static const Color darkBorderMedium = Color(0xFF606060);
   
-  // Border Colors
-  static const Color borderLight = Color(0xFFE2E8F0);
-  static const Color borderMedium = Color(0xFFCBD5E1);
+  // Legacy colors for backward compatibility
+  static const Color backgroundColor = lightBackgroundColor;
+  static const Color surfaceColor = lightSurfaceColor;
+  static const Color cardColor = lightCardColor;
+  static const Color textPrimary = lightTextPrimary;
+  static const Color textSecondary = lightTextSecondary;
+  static const Color textTertiary = lightTextTertiary;
+  
+  // Border Colors (legacy)
+  static const Color borderLight = lightBorderLight;
+  static const Color borderMedium = lightBorderMedium;
   
   // Gradients
   static const LinearGradient primaryGradient = LinearGradient(
@@ -131,4 +149,146 @@ class AppTheme {
     color: textSecondary,
     height: 1.4,
   );
+
+  // Theme Data Configurations
+  static ThemeData get lightTheme {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
+      primarySwatch: Colors.blue,
+      primaryColor: primaryColor,
+      scaffoldBackgroundColor: lightBackgroundColor,
+      cardColor: lightCardColor,
+      dividerColor: lightBorderLight,
+      colorScheme: const ColorScheme.light(
+        primary: primaryColor,
+        secondary: secondaryColor,
+        surface: lightSurfaceColor,
+        background: lightBackgroundColor,
+        error: errorColor,
+        onPrimary: Colors.white,
+        onSecondary: Colors.white,
+        onSurface: lightTextPrimary,
+        onBackground: lightTextPrimary,
+        onError: Colors.white,
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+      ),
+      cardTheme: CardTheme(
+        color: lightCardColor,
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: largeRadius,
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primaryColor,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: mediumRadius,
+          ),
+        ),
+      ),
+    );
+  }
+
+  static ThemeData get darkTheme {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      primarySwatch: Colors.blue,
+      primaryColor: primaryColor,
+      scaffoldBackgroundColor: darkBackgroundColor,
+      cardColor: darkCardColor,
+      dividerColor: darkBorderLight,
+      colorScheme: const ColorScheme.dark(
+        primary: primaryColor,
+        secondary: secondaryColor,
+        surface: darkSurfaceColor,
+        background: darkBackgroundColor,
+        error: errorColor,
+        onPrimary: Colors.white,
+        onSecondary: Colors.white,
+        onSurface: darkTextPrimary,
+        onBackground: darkTextPrimary,
+        onError: Colors.white,
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+      ),
+      cardTheme: CardTheme(
+        color: darkCardColor,
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: largeRadius,
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primaryColor,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: mediumRadius,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper methods to get theme-aware colors
+  static Color getBackgroundColor(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark
+        ? darkBackgroundColor
+        : lightBackgroundColor;
+  }
+
+  static Color getSurfaceColor(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark
+        ? darkSurfaceColor
+        : lightSurfaceColor;
+  }
+
+  static Color getCardColor(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark
+        ? darkCardColor
+        : lightCardColor;
+  }
+
+  static Color getTextPrimary(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark
+        ? darkTextPrimary
+        : lightTextPrimary;
+  }
+
+  static Color getTextSecondary(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark
+        ? darkTextSecondary
+        : lightTextSecondary;
+  }
+
+  static Color getTextTertiary(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark
+        ? darkTextTertiary
+        : lightTextTertiary;
+  }
+
+  static Color getBorderLight(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark
+        ? darkBorderLight
+        : lightBorderLight;
+  }
+
+  static Color getBorderMedium(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark
+        ? darkBorderMedium
+        : lightBorderMedium;
+  }
 }

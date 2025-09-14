@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 import '../services/media_capture_service.dart';
 import '../services/auth_service.dart';
 import '../services/location_service.dart';
+import '../services/geocoding_service.dart';
 
 class ComplaintsScreen extends StatefulWidget {
   const ComplaintsScreen({super.key});
@@ -30,6 +31,8 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
   Position? _currentLocation;
   bool _isLoadingLocation = false;
   String? _locationError;
+  String _address = 'Loading location...';
+  bool _isLoadingAddress = true;
 
   final List<String> _categories = [
     'Road',
@@ -60,6 +63,8 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
     setState(() {
       _isLoadingLocation = true;
       _locationError = null;
+      _isLoadingAddress = true;
+      _address = 'Loading location...';
     });
 
     try {
@@ -69,13 +74,47 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
         _isLoadingLocation = false;
         if (position == null) {
           _locationError = 'Unable to get current location. Please enable location services.';
+          _isLoadingAddress = false;
+          _address = 'Location not available';
         }
       });
+      
+      // Load address if we have coordinates
+      if (position != null) {
+        await _loadAddress();
+      }
     } catch (e) {
       setState(() {
         _isLoadingLocation = false;
         _locationError = 'Error getting location: $e';
+        _isLoadingAddress = false;
+        _address = 'Location unavailable';
       });
+    }
+  }
+
+  Future<void> _loadAddress() async {
+    if (_currentLocation == null) return;
+    
+    try {
+      final address = await GeocodingService.getAddressFromCoordinates(
+        _currentLocation!.latitude, 
+        _currentLocation!.longitude
+      );
+      
+      if (mounted) {
+        setState(() {
+          _address = address;
+          _isLoadingAddress = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _address = 'Address unavailable';
+          _isLoadingAddress = false;
+        });
+      }
     }
   }
 
@@ -217,29 +256,19 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
-      appBar: AppBar(
-        title: Text(
-          'Report Issue',
-          style: AppTheme.headingSmall.copyWith(color: Colors.white),
-        ),
-        backgroundColor: AppTheme.primaryColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: AppTheme.primaryGradient,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+      backgroundColor: AppTheme.getBackgroundColor(context),
+      body: Stack(
+        children: [
+          // Main content with padding for floating app bar
+          Padding(
+            padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 86),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 86),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
               // Header Card
               Container(
                 padding: const EdgeInsets.all(AppTheme.spacingL),
@@ -250,7 +279,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: AppTheme.largeRadius,
-                  border: Border.all(color: AppTheme.borderLight),
+                  border: Border.all(color: AppTheme.getBorderLight(context)),
                 ),
                 child: Column(
                   children: [
@@ -266,15 +295,13 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                         color: AppTheme.primaryColor,
                       ),
                     ),
-                    const SizedBox(height: AppTheme.spacingM),
-                    Text(
-                      'Report an Issue',
-                      style: AppTheme.headingSmall.copyWith(color: AppTheme.primaryColor),
-                    ),
+                    
                     const SizedBox(height: AppTheme.spacingS),
                     Text(
                       'Help make your city better by reporting civic issues',
-                      style: AppTheme.bodyMedium,
+                      style: AppTheme.bodyMedium.copyWith(
+                        color: AppTheme.getTextSecondary(context),
+                      ),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -285,14 +312,16 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
               // Category Selection
               Text(
                 'Category *',
-                style: AppTheme.labelLarge,
+                style: AppTheme.labelLarge.copyWith(
+                  color: AppTheme.getTextPrimary(context),
+                ),
               ),
               const SizedBox(height: AppTheme.spacingS),
               Container(
                 decoration: BoxDecoration(
-                  color: AppTheme.surfaceColor,
+                  color: AppTheme.getSurfaceColor(context),
                   borderRadius: AppTheme.mediumRadius,
-                  border: Border.all(color: AppTheme.borderLight),
+                  border: Border.all(color: AppTheme.getBorderLight(context)),
                   boxShadow: const [AppTheme.cardShadow],
                 ),
                 child: DropdownButtonFormField<String>(
@@ -302,7 +331,9 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                     contentPadding: EdgeInsets.symmetric(horizontal: AppTheme.spacingM, vertical: AppTheme.spacingM),
                     prefixIcon: Icon(Icons.category_outlined, color: AppTheme.primaryColor),
                   ),
-                  style: AppTheme.bodyLarge,
+                  style: AppTheme.bodyLarge.copyWith(
+                    color: AppTheme.getTextPrimary(context),
+                  ),
                   items: _categories.map((category) {
                     return DropdownMenuItem(
                       value: category,
@@ -319,32 +350,33 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
               const SizedBox(height: 20),
 
               // Description
-              const Text(
+              Text(
                 'Description *',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                style: AppTheme.labelLarge.copyWith(
+                  color: AppTheme.getTextPrimary(context),
                 ),
               ),
               const SizedBox(height: 8),
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppTheme.getSurfaceColor(context),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(color: AppTheme.getBorderLight(context)),
                 ),
                 child: TextFormField(
                   controller: _descriptionController,
                   maxLines: 4,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Describe the issue in detail...',
+                    hintStyle: TextStyle(color: AppTheme.getTextSecondary(context)),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.all(16),
-                    prefixIcon: Padding(
+                    contentPadding: const EdgeInsets.all(16),
+                    prefixIcon: const Padding(
                       padding: EdgeInsets.only(top: 12),
-                      child: Icon(Icons.description_outlined, color: Colors.blue),
+                      child: Icon(Icons.description_outlined, color: AppTheme.primaryColor),
                     ),
                   ),
+                  style: TextStyle(color: AppTheme.getTextPrimary(context)),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Please provide a description';
@@ -356,20 +388,19 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
               const SizedBox(height: 20),
 
               // Location Section
-              const Text(
+              Text(
                 'Location *',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                style: AppTheme.labelLarge.copyWith(
+                  color: AppTheme.getTextPrimary(context),
                 ),
               ),
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppTheme.getSurfaceColor(context),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(color: AppTheme.getBorderLight(context)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -390,20 +421,68 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(
-                            _isLoadingLocation 
-                              ? 'Getting current location...'
-                              : _currentLocation != null 
-                                ? 'Location: ${_currentLocation!.latitude.toStringAsFixed(4)}, ${_currentLocation!.longitude.toStringAsFixed(4)}'
-                                : _locationError ?? 'Location not available',
-                            style: TextStyle(
-                              color: _isLoadingLocation 
-                                ? Colors.orange
-                                : _currentLocation != null 
-                                  ? Colors.green 
-                                  : Colors.red,
-                              fontWeight: FontWeight.w500,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (_isLoadingLocation) ...[
+                                Text(
+                                  'Getting current location...',
+                                  style: TextStyle(
+                                    color: Colors.orange,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ] else if (_currentLocation != null) ...[
+                                if (_isLoadingAddress) ...[
+                                  Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 12,
+                                        height: 12,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 1.5,
+                                          color: Colors.green,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Loading address...',
+                                        style: TextStyle(
+                                          color: Colors.green,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ] else ...[
+                                  Text(
+                                    _address,
+                                    style: TextStyle(
+                                      color: Colors.green,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Coordinates: ${_currentLocation!.latitude.toStringAsFixed(4)}, ${_currentLocation!.longitude.toStringAsFixed(4)}',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ] else ...[
+                                Text(
+                                  _locationError ?? 'Location not available',
+                                  style: TextStyle(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       ],
@@ -431,11 +510,10 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
               const SizedBox(height: 20),
 
               // Media Capture (Optional)
-              const Text(
+              Text(
                 'Media (Optional)',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                style: AppTheme.labelLarge.copyWith(
+                  color: AppTheme.getTextPrimary(context),
                 ),
               ),
               const SizedBox(height: 8),
@@ -467,49 +545,101 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
               // Submit Button
               Container(
                 decoration: BoxDecoration(
-                  borderRadius: AppTheme.largeRadius,
-                  gradient: AppTheme.primaryGradient,
+                  borderRadius: AppTheme.mediumRadius,
+                  gradient: LinearGradient(
+                    colors: [
+                      AppTheme.primaryColor,
+                      AppTheme.primaryColor.withBlue(255),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.primaryColor.withOpacity(0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
+                      color: AppTheme.primaryColor.withOpacity(0.4),
+                      blurRadius: 15,
+                      offset: const Offset(0, 6),
                     ),
                   ],
                 ),
-                child: ElevatedButton(
-                  onPressed: _isSubmitting ? null : _submitComplaint,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    padding: const EdgeInsets.symmetric(vertical: AppTheme.spacingL),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: AppTheme.largeRadius,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _isSubmitting ? null : _submitComplaint,
+                    borderRadius: AppTheme.mediumRadius,
+                    child: Container(
+                      padding: const EdgeInsets.all(AppTheme.spacingL),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _isSubmitting
+                              ? SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.send_rounded,
+                                  color: Colors.white,
+                                  size: 22,
+                                ),
+                          const SizedBox(width: AppTheme.spacingM),
+                          Text(
+                            _isSubmitting ? 'Submitting...' : 'Submit Complaint',
+                            style: AppTheme.bodyLarge.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  child: _isSubmitting
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Text(
-                          'Submit Complaint',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
                 ),
               ),
               const SizedBox(height: 20),
-            ],
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
+          // Floating pill-shaped app bar
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            left: 8,
+            right: 8,
+            child: Container(
+              height: 70,
+              decoration: BoxDecoration(
+                gradient: AppTheme.primaryGradient,
+                borderRadius: AppTheme.largeRadius,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.primaryColor.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Report an Issue',
+                    style: AppTheme.headingMedium.copyWith(
+                      color: Colors.white,
+                      fontSize: 20,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -571,9 +701,9 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.surfaceColor,
+        color: AppTheme.getSurfaceColor(context),
         borderRadius: AppTheme.mediumRadius,
-        border: Border.all(color: AppTheme.borderLight),
+        border: Border.all(color: AppTheme.getBorderLight(context)),
         boxShadow: [AppTheme.cardShadow],
       ),
       child: Padding(
@@ -589,6 +719,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                   title,
                   style: AppTheme.bodyMedium.copyWith(
                     fontWeight: FontWeight.w600,
+                    color: AppTheme.getTextPrimary(context),
                   ),
                 ),
                 const Spacer(),
@@ -704,9 +835,9 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
   Widget _buildAudioRecordingCard() {
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.surfaceColor,
+        color: AppTheme.getSurfaceColor(context),
         borderRadius: AppTheme.mediumRadius,
-        border: Border.all(color: AppTheme.borderLight),
+        border: Border.all(color: AppTheme.getBorderLight(context)),
         boxShadow: [AppTheme.cardShadow],
       ),
       child: Padding(
@@ -722,6 +853,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                   'Audio Recording',
                   style: AppTheme.bodyMedium.copyWith(
                     fontWeight: FontWeight.w600,
+                    color: AppTheme.getTextPrimary(context),
                   ),
                 ),
                 const Spacer(),

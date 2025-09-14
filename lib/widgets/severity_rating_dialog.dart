@@ -22,8 +22,10 @@ class _SeverityRatingDialogState extends State<SeverityRatingDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(16),
       child: Container(
-        padding: const EdgeInsets.all(24),
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: AppTheme.surfaceColor,
           borderRadius: AppTheme.largeRadius,
@@ -35,9 +37,10 @@ class _SeverityRatingDialogState extends State<SeverityRatingDialog> {
             ),
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             // Header
             Row(
               children: [
@@ -101,8 +104,9 @@ class _SeverityRatingDialogState extends State<SeverityRatingDialog> {
                   const SizedBox(height: 16),
                   
                   // Rating buttons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  Wrap(
+                    alignment: WrapAlignment.spaceEvenly,
+                    spacing: 8,
                     children: List.generate(5, (index) {
                       final severity = index + 1;
                       final isSelected = _selectedSeverity == severity;
@@ -112,10 +116,13 @@ class _SeverityRatingDialogState extends State<SeverityRatingDialog> {
                           setState(() {
                             _selectedSeverity = severity;
                           });
+                          // Automatically submit the rating when tapped
+                          widget.onRatingSubmitted(severity);
+                          Navigator.of(context).pop();
                         },
                         child: Container(
-                          width: 50,
-                          height: 50,
+                          width: 45,
+                          height: 45,
                           decoration: BoxDecoration(
                             color: isSelected 
                                 ? _getSeverityColor(severity)
@@ -140,7 +147,7 @@ class _SeverityRatingDialogState extends State<SeverityRatingDialog> {
                                 color: isSelected 
                                     ? Colors.white 
                                     : _getSeverityColor(severity),
-                                fontSize: 18,
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -232,7 +239,8 @@ class _SeverityRatingDialogState extends State<SeverityRatingDialog> {
                 ),
               ],
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
