@@ -30,7 +30,7 @@ class SupabaseOTPService {
 
 
   // Send email OTP using Supabase native auth with updated template
-  static Future<Map<String, dynamic>> sendOTPToEmail(String email) async {
+  static Future<Map<String, dynamic>> sendOTPToEmail(String email, {String? displayName}) async {
     try {
       // Use signInWithOtp with specific configuration to force OTP tokens
       await _supabase.auth.signInWithOtp(
@@ -38,6 +38,7 @@ class SupabaseOTPService {
         shouldCreateUser: true,
         data: {
           'type': 'email_otp', // Explicitly specify OTP type
+          'display_name': displayName, // Store display name for new users
         },
       );
       
@@ -102,6 +103,21 @@ class SupabaseOTPService {
       );
 
       if (response.user != null) {
+        // Update user metadata with display name if provided during signup
+        if (response.user!.userMetadata?['display_name'] != null) {
+          try {
+            await _supabase.auth.updateUser(
+              UserAttributes(
+                data: {
+                  'display_name': response.user!.userMetadata!['display_name'],
+                }
+              )
+            );
+          } catch (e) {
+            print('Failed to update user display name: $e');
+          }
+        }
+        
         return {
           'success': true,
           'message': 'Email verified successfully',

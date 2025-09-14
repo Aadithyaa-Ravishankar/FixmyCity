@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../theme/app_theme.dart';
+import '../services/geocoding_service.dart';
+import '../services/location_service.dart';
 import '../services/auth_service.dart';
 
 class FeedScreen extends StatefulWidget {
@@ -17,7 +20,12 @@ class _FeedScreenState extends State<FeedScreen> {
   @override
   void initState() {
     super.initState();
+    _initializeLocation();
     _fetchComplaints();
+  }
+
+  Future<void> _initializeLocation() async {
+    await LocationService.getCurrentLocation();
   }
 
   Future<void> _fetchComplaints() async {
@@ -27,19 +35,46 @@ class _FeedScreenState extends State<FeedScreen> {
           .select('*')
           .order('created_at', ascending: false);
 
-      // For each complaint, try to get user info from current session or use fallback
+      print('Fetched ${response.length} complaints from database');
+      for (var complaint in response) {
+        print('Complaint ${complaint['complaint_id']}: lat=${complaint['location_lat']}, long=${complaint['location_long']}');
+      }
+
+      // Get user profiles for all complaints in one query
+      final userIds = response.map((c) => c['user_id']).where((id) => id != null).toSet().toList();
+      Map<String, String> userProfiles = {};
+      
+      if (userIds.isNotEmpty) {
+        try {
+          final profilesResponse = await _supabase
+              .from('user_profiles')
+              .select('id, display_name')
+              .inFilter('id', userIds);
+          
+          for (var profile in profilesResponse) {
+            userProfiles[profile['id']] = profile['display_name'] ?? 'Anonymous User';
+          }
+        } catch (e) {
+          print('Failed to fetch user profiles: $e');
+        }
+      }
+
+      // For each complaint, assign the user name
       List<Map<String, dynamic>> complaintsWithUsers = [];
       final currentUser = _supabase.auth.currentUser;
       
       for (var complaint in response) {
+        final userId = complaint['user_id'];
+        
         // If it's the current user's complaint, use their info
-        if (currentUser != null && complaint['user_id'] == currentUser.id) {
-          complaint['user_name'] = currentUser.email?.split('@')[0] ?? 'You';
+        if (currentUser != null && userId == currentUser.id) {
+          // Use display_name if available, otherwise fall back to email username
+          final displayName = currentUser.userMetadata?['display_name'] as String?;
+          complaint['user_name'] = displayName ?? currentUser.email?.split('@')[0] ?? 'You';
           complaint['user_email'] = currentUser.email;
         } else {
-          // For other users, use a generic name for now
-          // In a real app, you'd store user profiles in a separate table
-          complaint['user_name'] = 'User';
+          // For other users, use the fetched profile data
+          complaint['user_name'] = userProfiles[userId] ?? 'Anonymous User';
           complaint['user_email'] = null;
         }
         
@@ -75,19 +110,22 @@ class _FeedScreenState extends State<FeedScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'FixmyCity',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
-          ),
+          style: AppTheme.headingMedium.copyWith(color: Colors.white),
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: AppTheme.primaryColor,
+        foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: false,
         automaticallyImplyLeading: false,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: AppTheme.primaryGradient,
+          ),
+        ),
       ),
       body: _isLoading
           ? const Center(
@@ -154,11 +192,57 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
   int _likeCount = 0;
   int _dislikeCount = 0;
   bool _isLoading = false;
+  String _address = 'Loading location...';
+  bool _isLoadingAddress = true;
+  String? _distance;
 
   @override
   void initState() {
     super.initState();
     _loadVerificationStatus();
+    _loadAddress();
+    _calculateDistance();
+  }
+
+  void _calculateDistance() {
+    final lat = widget.complaint['location_lat'] as double?;
+    final lon = widget.complaint['location_long'] as double?;
+    
+    if (lat != null && lon != null) {
+      final distance = LocationService.getDistanceFromCurrent(lat, lon);
+      setState(() {
+        _distance = distance;
+      });
+    }
+  }
+
+  Future<void> _loadAddress() async {
+    try {
+      final lat = widget.complaint['location_lat'] as double?;
+      final lon = widget.complaint['location_long'] as double?;
+      
+      if (lat != null && lon != null) {
+        final address = await GeocodingService.getAddressFromCoordinates(lat, lon);
+        if (mounted) {
+          setState(() {
+            _address = address;
+            _isLoadingAddress = false;
+          });
+        }
+      } else {
+        setState(() {
+          _address = 'Location not available';
+          _isLoadingAddress = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _address = 'Location unavailable';
+          _isLoadingAddress = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadVerificationStatus() async {
@@ -394,48 +478,40 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
     final userName = widget.complaint['user_name'] ?? 'Anonymous';
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: AppTheme.spacingM, vertical: AppTheme.spacingS),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: AppTheme.surfaceColor,
+        borderRadius: AppTheme.largeRadius,
+        boxShadow: const [AppTheme.cardShadow],
+        border: Border.all(color: AppTheme.borderLight),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppTheme.spacingM),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(AppTheme.spacingS),
                   decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    color: AppTheme.primaryColor.withOpacity(0.1),
+                    borderRadius: AppTheme.smallRadius,
                   ),
                   child: Text(
                     _getCategoryIcon(category),
                     style: const TextStyle(fontSize: 20),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppTheme.spacingM),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         category ?? 'General Issue',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                        ),
+                        style: AppTheme.labelLarge,
                       ),
                       Row(
                         children: [
@@ -546,22 +622,71 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
           // Location info
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
+            child: Column(
               children: [
-                Icon(
-                  Icons.location_on_outlined,
-                  size: 16,
-                  color: Colors.grey[600],
+                Row(
+                  children: [
+                    Icon(
+                      Icons.location_on_outlined,
+                      size: 16,
+                      color: Colors.grey[600],
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: _isLoadingAddress
+                          ? Row(
+                              children: [
+                                SizedBox(
+                                  width: 12,
+                                  height: 12,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1.5,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Loading location...',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Text(
+                              _address,
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 12,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 4),
-                Text(
-                  'Lat: ${widget.complaint['location_lat']?.toStringAsFixed(4)}, '
-                  'Long: ${widget.complaint['location_long']?.toStringAsFixed(4)}',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 12,
+                if (_distance != null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.near_me_outlined,
+                        size: 14,
+                        color: Colors.blue[600],
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _distance!,
+                        style: TextStyle(
+                          color: Colors.blue[600],
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                ],
               ],
             ),
           ),

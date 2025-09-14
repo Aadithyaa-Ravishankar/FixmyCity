@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import '../theme/app_theme.dart';
+import '../services/media_capture_service.dart';
 import '../services/auth_service.dart';
 
 class ComplaintsScreen extends StatefulWidget {
@@ -14,9 +19,10 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
   final _descriptionController = TextEditingController();
   final _latitudeController = TextEditingController();
   final _longitudeController = TextEditingController();
-  final _voiceUrlController = TextEditingController();
-  final _videoUrlController = TextEditingController();
-  final _pictureUrlController = TextEditingController();
+  XFile? _capturedPhoto;
+  XFile? _capturedVideo;
+  String? _audioRecordingPath;
+  bool _isRecording = false;
 
   String _selectedCategory = 'Road';
   bool _isSubmitting = false;
@@ -38,9 +44,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
     _descriptionController.dispose();
     _latitudeController.dispose();
     _longitudeController.dispose();
-    _voiceUrlController.dispose();
-    _videoUrlController.dispose();
-    _pictureUrlController.dispose();
+    MediaCaptureService.dispose();
     super.dispose();
   }
 
@@ -67,15 +71,33 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
     try {
       final supabase = Supabase.instance.client;
       
+      // For now, we'll store file paths as URLs in the database
+      // In a production app, you'd upload these files to storage first
+      String? photoUrl;
+      String? videoUrl;
+      String? audioUrl;
+      
+      if (_capturedPhoto != null) {
+        photoUrl = _capturedPhoto!.path;
+      }
+      
+      if (_capturedVideo != null) {
+        videoUrl = _capturedVideo!.path;
+      }
+      
+      if (_audioRecordingPath != null) {
+        audioUrl = _audioRecordingPath;
+      }
+
       await supabase.from('complaints').insert({
         'user_id': user.id,
         'location_lat': double.tryParse(_latitudeController.text) ?? 0.0,
         'location_long': double.tryParse(_longitudeController.text) ?? 0.0,
         'description': _descriptionController.text.trim(),
         'category': _selectedCategory,
-        'voice_url': _voiceUrlController.text.trim().isEmpty ? null : _voiceUrlController.text.trim(),
-        'video_url': _videoUrlController.text.trim().isEmpty ? null : _videoUrlController.text.trim(),
-        'picture_url': _pictureUrlController.text.trim().isEmpty ? null : _pictureUrlController.text.trim(),
+        'voice_url': audioUrl,
+        'video_url': videoUrl,
+        'picture_url': photoUrl,
         'complaint_status': 'pending',
       });
 
@@ -83,11 +105,12 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
       _descriptionController.clear();
       _latitudeController.clear();
       _longitudeController.clear();
-      _voiceUrlController.clear();
-      _videoUrlController.clear();
-      _pictureUrlController.clear();
       setState(() {
         _selectedCategory = 'Road';
+        _capturedPhoto = null;
+        _capturedVideo = null;
+        _audioRecordingPath = null;
+        _isRecording = false;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -124,17 +147,20 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        title: const Text(
-          'Submit Complaint',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
+        title: Text(
+          'Report Issue',
+          style: AppTheme.headingSmall.copyWith(color: Colors.white),
+        ),
+        backgroundColor: AppTheme.primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: AppTheme.primaryGradient,
           ),
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -144,40 +170,41 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header
+              // Header Card
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(AppTheme.spacingL),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.blue.shade50, Colors.blue.shade100],
+                    colors: [AppTheme.primaryColor.withOpacity(0.1), AppTheme.primaryLight.withOpacity(0.05)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: AppTheme.largeRadius,
+                  border: Border.all(color: AppTheme.borderLight),
                 ),
-                child: const Column(
+                child: Column(
                   children: [
-                    Icon(
-                      Icons.report_problem_outlined,
-                      size: 48,
-                      color: Colors.blue,
+                    Container(
+                      padding: const EdgeInsets.all(AppTheme.spacingM),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                      child: const Icon(
+                        Icons.report_problem_outlined,
+                        size: 32,
+                        color: AppTheme.primaryColor,
+                      ),
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: AppTheme.spacingM),
                     Text(
                       'Report an Issue',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
-                      ),
+                      style: AppTheme.headingSmall.copyWith(color: AppTheme.primaryColor),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: AppTheme.spacingS),
                     Text(
-                      'Help make your city better by reporting issues',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey,
-                      ),
+                      'Help make your city better by reporting civic issues',
+                      style: AppTheme.bodyMedium,
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -186,27 +213,26 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
               const SizedBox(height: 24),
 
               // Category Selection
-              const Text(
+              Text(
                 'Category *',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: AppTheme.labelLarge,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppTheme.spacingS),
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
+                  color: AppTheme.surfaceColor,
+                  borderRadius: AppTheme.mediumRadius,
+                  border: Border.all(color: AppTheme.borderLight),
+                  boxShadow: const [AppTheme.cardShadow],
                 ),
                 child: DropdownButtonFormField<String>(
                   value: _selectedCategory,
                   decoration: const InputDecoration(
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    prefixIcon: Icon(Icons.category_outlined, color: Colors.blue),
+                    contentPadding: EdgeInsets.symmetric(horizontal: AppTheme.spacingM, vertical: AppTheme.spacingM),
+                    prefixIcon: Icon(Icons.category_outlined, color: AppTheme.primaryColor),
                   ),
+                  style: AppTheme.bodyLarge,
                   items: _categories.map((category) {
                     return DropdownMenuItem(
                       value: category,
@@ -347,7 +373,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Media URLs (Optional)
+              // Media Capture (Optional)
               const Text(
                 'Media (Optional)',
                 style: TextStyle(
@@ -357,78 +383,38 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
               ),
               const SizedBox(height: 8),
               
-              // Picture URL
-              Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: TextFormField(
-                  controller: _pictureUrlController,
-                  decoration: const InputDecoration(
-                    labelText: 'Picture URL',
-                    hintText: 'https://example.com/image.jpg',
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.all(16),
-                    prefixIcon: Icon(Icons.image_outlined, color: Colors.blue),
-                  ),
-                ),
+              // Photo Capture
+              _buildMediaCaptureCard(
+                title: 'Photo',
+                icon: Icons.camera_alt,
+                capturedFile: _capturedPhoto,
+                onCapture: _capturePhoto,
+                onRemove: () => setState(() => _capturedPhoto = null),
               ),
+              const SizedBox(height: 12),
 
-              // Video URL
-              Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: TextFormField(
-                  controller: _videoUrlController,
-                  decoration: const InputDecoration(
-                    labelText: 'Video URL',
-                    hintText: 'https://example.com/video.mp4',
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.all(16),
-                    prefixIcon: Icon(Icons.video_library_outlined, color: Colors.blue),
-                  ),
-                ),
+              // Video Capture
+              _buildMediaCaptureCard(
+                title: 'Video',
+                icon: Icons.videocam,
+                capturedFile: _capturedVideo,
+                onCapture: _recordVideo,
+                onRemove: () => setState(() => _capturedVideo = null),
               ),
+              const SizedBox(height: 12),
 
-              // Voice URL
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: TextFormField(
-                  controller: _voiceUrlController,
-                  decoration: const InputDecoration(
-                    labelText: 'Voice Recording URL',
-                    hintText: 'https://example.com/audio.mp3',
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.all(16),
-                    prefixIcon: Icon(Icons.mic_outlined, color: Colors.blue),
-                  ),
-                ),
-              ),
+              // Audio Recording
+              _buildAudioRecordingCard(),
               const SizedBox(height: 32),
 
               // Submit Button
               Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: LinearGradient(
-                    colors: [Colors.blue.shade600, Colors.blue.shade400],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  borderRadius: AppTheme.largeRadius,
+                  gradient: AppTheme.primaryGradient,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.blue.withOpacity(0.3),
+                      color: AppTheme.primaryColor.withOpacity(0.3),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -439,9 +425,9 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     shadowColor: Colors.transparent,
-                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    padding: const EdgeInsets.symmetric(vertical: AppTheme.spacingL),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: AppTheme.largeRadius,
                     ),
                   ),
                   child: _isSubmitting
@@ -466,6 +452,308 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
               const SizedBox(height: 20),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // Photo capture method
+  Future<void> _capturePhoto() async {
+    try {
+      final photo = await MediaCaptureService.capturePhoto();
+      if (photo != null) {
+        setState(() {
+          _capturedPhoto = photo;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Photo captured successfully!')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error capturing photo: $e')),
+      );
+    }
+  }
+
+  // Video recording method
+  Future<void> _recordVideo() async {
+    try {
+      final video = await MediaCaptureService.recordVideo();
+      if (video != null) {
+        setState(() {
+          _capturedVideo = video;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Video recorded successfully!')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error recording video: $e')),
+      );
+    }
+  }
+
+  // Start audio recording
+  Future<void> _startAudioRecording() async {
+    try {
+      final tempDir = await MediaCaptureService.getTempDirectory();
+      final fileName = MediaCaptureService.generateFileName('m4a');
+      final filePath = '$tempDir/$fileName';
+      
+      await MediaCaptureService.startAudioRecording(filePath);
+      setState(() {
+        _isRecording = true;
+        _audioRecordingPath = filePath;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Recording started...')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error starting recording: $e')),
+      );
+    }
+  }
+
+  // Stop audio recording
+  Future<void> _stopAudioRecording() async {
+    try {
+      final recordedPath = await MediaCaptureService.stopAudioRecording();
+      setState(() {
+        _isRecording = false;
+        _audioRecordingPath = recordedPath;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Recording stopped successfully!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error stopping recording: $e')),
+      );
+    }
+  }
+
+  // Build media capture card widget
+  Widget _buildMediaCaptureCard({
+    required String title,
+    required IconData icon,
+    required XFile? capturedFile,
+    required VoidCallback onCapture,
+    required VoidCallback onRemove,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceColor,
+        borderRadius: AppTheme.mediumRadius,
+        border: Border.all(color: AppTheme.borderLight),
+        boxShadow: [AppTheme.cardShadow],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingM),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: AppTheme.primaryColor, size: 24),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: AppTheme.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                if (capturedFile != null)
+                  IconButton(
+                    onPressed: onRemove,
+                    icon: const Icon(Icons.close, color: AppTheme.errorColor),
+                    iconSize: 20,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (capturedFile != null) ...[
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.successColor.withOpacity(0.1),
+                  borderRadius: AppTheme.smallRadius,
+                  border: Border.all(color: AppTheme.successColor.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: AppTheme.successColor, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Captured: ${capturedFile.name}',
+                        style: AppTheme.bodySmall.copyWith(
+                          color: AppTheme.successColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: onCapture,
+                  icon: Icon(icon, size: 18),
+                  label: Text('Capture $title'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+                    foregroundColor: AppTheme.primaryColor,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppTheme.smallRadius,
+                      side: BorderSide(color: AppTheme.primaryColor.withOpacity(0.3)),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Build audio recording card widget
+  Widget _buildAudioRecordingCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceColor,
+        borderRadius: AppTheme.mediumRadius,
+        border: Border.all(color: AppTheme.borderLight),
+        boxShadow: [AppTheme.cardShadow],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingM),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.mic, color: AppTheme.primaryColor, size: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'Audio Recording',
+                  style: AppTheme.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                if (_audioRecordingPath != null && !_isRecording)
+                  IconButton(
+                    onPressed: () => setState(() => _audioRecordingPath = null),
+                    icon: const Icon(Icons.close, color: AppTheme.errorColor),
+                    iconSize: 20,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (_audioRecordingPath != null && !_isRecording) ...[
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.successColor.withOpacity(0.1),
+                  borderRadius: AppTheme.smallRadius,
+                  border: Border.all(color: AppTheme.successColor.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: AppTheme.successColor, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Audio recorded successfully',
+                        style: AppTheme.bodySmall.copyWith(
+                          color: AppTheme.successColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else if (_isRecording) ...[
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.errorColor.withOpacity(0.1),
+                  borderRadius: AppTheme.smallRadius,
+                  border: Border.all(color: AppTheme.errorColor.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(AppTheme.errorColor),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Recording in progress...',
+                      style: AppTheme.bodySmall.copyWith(
+                        color: AppTheme.errorColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _stopAudioRecording,
+                  icon: const Icon(Icons.stop, size: 18),
+                  label: const Text('Stop Recording'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.errorColor,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppTheme.smallRadius,
+                    ),
+                  ),
+                ),
+              ),
+            ] else ...[
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _startAudioRecording,
+                  icon: const Icon(Icons.mic, size: 18),
+                  label: const Text('Start Recording'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+                    foregroundColor: AppTheme.primaryColor,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppTheme.smallRadius,
+                      side: BorderSide(color: AppTheme.primaryColor.withOpacity(0.3)),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

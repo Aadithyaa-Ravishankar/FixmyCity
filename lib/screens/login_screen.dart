@@ -79,7 +79,10 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   }
 
   Future<void> _handleSignup() async {
-    final result = await AuthService.sendOTPToEmail(_emailController.text);
+    final result = await AuthService.sendOTPToEmail(
+      _emailController.text, 
+      displayName: _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : null
+    );
     _navigateToOTP('email', _emailController.text, result);
   }
 

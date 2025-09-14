@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../screens/login_screen.dart';
 import '../screens/home_screen.dart';
@@ -13,6 +14,9 @@ class AuthWrapper extends StatefulWidget {
 class _AuthWrapperState extends State<AuthWrapper> {
   User? _user;
   bool _isLoading = true;
+  
+  // Development bypass - set to true to skip authentication during development
+  static const bool _developmentBypass = true;
 
   @override
   void initState() {
@@ -56,6 +60,16 @@ class _AuthWrapperState extends State<AuthWrapper> {
           child: CircularProgressIndicator(),
         ),
       );
+    }
+
+    // Debug output
+    print('Debug mode: $kDebugMode, Web: $kIsWeb, Bypass: $_developmentBypass');
+    print('User: $_user');
+
+    // Development bypass for easier testing
+    if (_developmentBypass) {
+      print('Using development bypass - going to HomeScreen');
+      return const HomeScreen();
     }
 
     return _user != null ? const HomeScreen() : const LoginScreen();

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../theme/app_theme.dart';
 import '../services/auth_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -65,18 +66,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user = AuthService.getCurrentUser();
 
     return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Profile',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
+          style: AppTheme.headingSmall.copyWith(color: Colors.white),
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: AppTheme.primaryColor,
+        foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: AppTheme.primaryGradient,
+          ),
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -86,52 +90,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   // Profile Header
                   Container(
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(AppTheme.spacingXL),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.blue.shade600, Colors.blue.shade400],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.blue.withOpacity(0.3),
-                          blurRadius: 20,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
+                      gradient: AppTheme.primaryGradient,
+                      borderRadius: AppTheme.extraLargeRadius,
+                      boxShadow: const [AppTheme.elevatedShadow],
                     ),
                     child: Column(
                       children: [
                         Container(
-                          width: 80,
-                          height: 80,
+                          width: 100,
+                          height: 100,
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(40),
+                            borderRadius: BorderRadius.circular(50),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.3),
+                              width: 3,
+                            ),
                           ),
                           child: const Icon(
                             Icons.person,
-                            size: 40,
+                            size: 50,
                             color: Colors.white,
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: AppTheme.spacingL),
                         Text(
-                          user?.email?.split('@')[0] ?? 'User',
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
+                          user?.userMetadata?['display_name'] ?? user?.email?.split('@')[0] ?? 'User',
+                          style: AppTheme.headingMedium.copyWith(
                             color: Colors.white,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: AppTheme.spacingS),
                         Text(
                           user?.email ?? 'No email',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.white.withOpacity(0.8),
+                          style: AppTheme.bodyMedium.copyWith(
+                            color: Colors.white.withOpacity(0.9),
                           ),
                         ),
                       ],
@@ -189,27 +184,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   // User Information Card
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(AppTheme.spacingL),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                      color: AppTheme.surfaceColor,
+                      borderRadius: AppTheme.largeRadius,
+                      boxShadow: const [AppTheme.cardShadow],
+                      border: Border.all(color: AppTheme.borderLight),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Account Information',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: AppTheme.headingSmall,
                         ),
                         const SizedBox(height: 16),
                         if (user?.email != null)
@@ -247,27 +234,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   // Action Buttons
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(AppTheme.spacingL),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                      color: AppTheme.surfaceColor,
+                      borderRadius: AppTheme.largeRadius,
+                      boxShadow: const [AppTheme.cardShadow],
+                      border: Border.all(color: AppTheme.borderLight),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text(
+                        Text(
                           'Actions',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: AppTheme.headingSmall,
                         ),
                         const SizedBox(height: 16),
                         _buildActionButton(
@@ -295,48 +274,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildStatCard(String title, String value, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppTheme.spacingL),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: AppTheme.surfaceColor,
+        borderRadius: AppTheme.mediumRadius,
+        boxShadow: const [AppTheme.cardShadow],
+        border: Border.all(color: AppTheme.borderLight),
       ),
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(AppTheme.spacingM),
             decoration: BoxDecoration(
               color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: AppTheme.smallRadius,
             ),
             child: Icon(
               icon,
               color: color,
-              size: 24,
+              size: 28,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppTheme.spacingM),
           Text(
             value,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+            style: AppTheme.headingMedium.copyWith(color: color),
           ),
+          const SizedBox(height: AppTheme.spacingXS),
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-              fontWeight: FontWeight.w500,
-            ),
+            style: AppTheme.labelMedium,
           ),
         ],
       ),
@@ -350,28 +317,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Icon(
           icon,
           size: 20,
-          color: Colors.blue,
+          color: AppTheme.primaryColor,
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: AppTheme.spacingM),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey,
-                ),
+                style: AppTheme.labelMedium,
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: AppTheme.spacingXS),
               Text(
                 value,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: AppTheme.bodyLarge,
               ),
             ],
           ),
@@ -383,12 +343,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildActionButton(IconData icon, String label, Color color, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: AppTheme.mediumRadius,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppTheme.spacingL),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(12),
+          color: color.withOpacity(0.08),
+          borderRadius: AppTheme.mediumRadius,
           border: Border.all(color: color.withOpacity(0.2)),
         ),
         child: Row(
@@ -396,13 +356,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Icon(
               icon,
               color: color,
-              size: 20,
+              size: 22,
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppTheme.spacingM),
             Text(
               label,
-              style: TextStyle(
-                fontSize: 16,
+              style: AppTheme.bodyLarge.copyWith(
                 fontWeight: FontWeight.w600,
                 color: color,
               ),

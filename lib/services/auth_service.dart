@@ -4,9 +4,9 @@ import 'supabase_otp_service.dart';
 class AuthService {
 
   // Send OTP to email using Supabase
-  static Future<Map<String, dynamic>> sendOTPToEmail(String email) async {
+  static Future<Map<String, dynamic>> sendOTPToEmail(String email, {String? displayName}) async {
     try {
-      final result = await SupabaseOTPService.sendOTPToEmail(email);
+      final result = await SupabaseOTPService.sendOTPToEmail(email, displayName: displayName);
       return result;
     } catch (e) {
       throw Exception('Failed to send OTP to email: $e');
