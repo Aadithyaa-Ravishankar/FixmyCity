@@ -15,7 +15,16 @@ class FeedScreen extends StatefulWidget {
 class _FeedScreenState extends State<FeedScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _complaints = [];
+  List<Map<String, dynamic>> _filteredComplaints = [];
   bool _isLoading = true;
+  double? _selectedDistance = 1000; // Default 1km in meters, null for 'All'
+  
+  final List<Map<String, dynamic>> _distanceOptions = [
+    {'label': 'All', 'value': null},
+    {'label': '250m', 'value': 250.0},
+    {'label': '500m', 'value': 500.0},
+    {'label': '1km', 'value': 1000.0},
+  ];
 
   @override
   void initState() {
@@ -34,11 +43,7 @@ class _FeedScreenState extends State<FeedScreen> {
           .from('complaints')
           .select('*')
           .order('created_at', ascending: false);
-
-      print('Fetched ${response.length} complaints from database');
-      for (var complaint in response) {
-        print('Complaint ${complaint['complaint_id']}: lat=${complaint['location_lat']}, long=${complaint['location_long']}');
-      }
+      
 
       // Get user profiles for all complaints in one query
       final userIds = response.map((c) => c['user_id']).where((id) => id != null).toSet().toList();
@@ -81,10 +86,14 @@ class _FeedScreenState extends State<FeedScreen> {
         complaintsWithUsers.add(complaint);
       }
 
+
       setState(() {
         _complaints = complaintsWithUsers;
         _isLoading = false;
       });
+      
+      // Apply distance filter after fetching complaints
+      _applyDistanceFilter();
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -105,6 +114,54 @@ class _FeedScreenState extends State<FeedScreen> {
       _isLoading = true;
     });
     await _fetchComplaints();
+  }
+  
+  void _applyDistanceFilter() {
+    // If 'All' is selected, show all complaints
+    if (_selectedDistance == null) {
+      setState(() {
+        _filteredComplaints = _complaints;
+      });
+      return;
+    }
+    
+    final userLocation = LocationService.getCachedPosition();
+    if (userLocation == null) {
+      setState(() {
+        _filteredComplaints = _complaints;
+      });
+      return;
+    }
+    
+    final filteredList = _complaints.where((complaint) {
+      final complaintLat = complaint['location_lat']?.toDouble() ?? 0.0;
+      final complaintLng = complaint['location_long']?.toDouble() ?? 0.0;
+      
+      if (complaintLat == 0.0 && complaintLng == 0.0) {
+        return false; // Skip complaints without valid coordinates
+      }
+      
+      final distance = LocationService.calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        complaintLat,
+        complaintLng,
+      );
+      
+      // Convert distance from km to meters for comparison
+      return (distance * 1000) <= _selectedDistance!;
+    }).toList();
+    
+    setState(() {
+      _filteredComplaints = filteredList;
+    });
+  }
+  
+  void _onDistanceChanged(double? newDistance) {
+    setState(() {
+      _selectedDistance = newDistance;
+    });
+    _applyDistanceFilter();
   }
 
   @override
@@ -131,46 +188,148 @@ class _FeedScreenState extends State<FeedScreen> {
           ? const Center(
               child: CircularProgressIndicator(),
             )
-          : RefreshIndicator(
-              onRefresh: _refreshComplaints,
-              child: _complaints.isEmpty
-                  ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.report_outlined,
-                            size: 64,
-                            color: Colors.grey,
-                          ),
-                          SizedBox(height: 16),
-                          Text(
-                            'No complaints yet',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.grey,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            'Be the first to report an issue!',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
+          : Column(
+              children: [
+                // Distance Filter Section
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceColor,
+                    borderRadius: AppTheme.largeRadius,
+                    boxShadow: [AppTheme.cardShadow],
+                    border: Border.all(color: AppTheme.borderLight.withOpacity(0.5)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.filter_list,
+                          color: AppTheme.primaryColor,
+                          size: 20,
+                        ),
                       ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: _complaints.length,
-                      itemBuilder: (context, index) {
-                        final complaint = _complaints[index];
-                        return ComplaintPostCard(complaint: complaint);
-                      },
-                    ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Filter by distance:',
+                        style: AppTheme.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppTheme.backgroundColor,
+                            borderRadius: BorderRadius.circular(25),
+                            border: Border.all(color: AppTheme.borderLight),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<double>(
+                              value: _selectedDistance,
+                              onChanged: _onDistanceChanged,
+                              isExpanded: true,
+                              dropdownColor: AppTheme.surfaceColor,
+                              style: AppTheme.bodyMedium.copyWith(
+                                color: AppTheme.textPrimary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              icon: Icon(
+                                Icons.keyboard_arrow_down,
+                                color: AppTheme.primaryColor,
+                                size: 20,
+                              ),
+                              items: _distanceOptions.map((option) {
+                                return DropdownMenuItem<double>(
+                                  value: option['value'],
+                                  child: Text(
+                                    option['label'],
+                                    style: AppTheme.bodyMedium.copyWith(
+                                      color: AppTheme.textPrimary,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          gradient: AppTheme.primaryGradient,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _selectedDistance == null 
+                              ? '${_filteredComplaints.length} total'
+                              : '${_filteredComplaints.length} nearby',
+                          style: AppTheme.bodySmall.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Feed Content
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _refreshComplaints,
+                    child: _filteredComplaints.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.report_outlined,
+                                  size: 64,
+                                  color: Colors.grey,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  _complaints.isEmpty ? 'No complaints yet' : 'No complaints in selected area',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    color: Colors.grey,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _complaints.isEmpty ? 'Be the first to report an issue!' : 'Try increasing the distance filter',
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
+                            itemCount: _filteredComplaints.length,
+                            padding: const EdgeInsets.all(16),
+                            itemBuilder: (context, index) {
+                              final complaint = _filteredComplaints[index];
+                              return ComplaintPostCard(
+                                key: ValueKey(complaint['complaint_id']),
+                                complaint: complaint,
+                              );
+                            },
+                          ),
+                  ),
+                ),
+              ],
             ),
     );
   }
@@ -204,6 +363,17 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
     _calculateDistance();
   }
 
+  @override
+  void didUpdateWidget(ComplaintPostCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If the complaint changed, reload the data
+    if (oldWidget.complaint['complaint_id'] != widget.complaint['complaint_id']) {
+      _loadVerificationStatus();
+      _loadAddress();
+      _calculateDistance();
+    }
+  }
+
   void _calculateDistance() {
     final lat = widget.complaint['location_lat'] as double?;
     final lon = widget.complaint['location_long'] as double?;
@@ -220,23 +390,27 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
     try {
       final lat = widget.complaint['location_lat'] as double?;
       final lon = widget.complaint['location_long'] as double?;
+      final complaintId = widget.complaint['complaint_id'];
       
       if (lat != null && lon != null) {
         final address = await GeocodingService.getAddressFromCoordinates(lat, lon);
-        if (mounted) {
+        // Only update if this widget is still mounted and for the same complaint
+        if (mounted && widget.complaint['complaint_id'] == complaintId) {
           setState(() {
             _address = address;
             _isLoadingAddress = false;
           });
         }
       } else {
-        setState(() {
-          _address = 'Location not available';
-          _isLoadingAddress = false;
-        });
+        if (mounted && widget.complaint['complaint_id'] == complaintId) {
+          setState(() {
+            _address = 'Location not available';
+            _isLoadingAddress = false;
+          });
+        }
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && widget.complaint['complaint_id'] == widget.complaint['complaint_id']) {
         setState(() {
           _address = 'Location unavailable';
           _isLoadingAddress = false;
