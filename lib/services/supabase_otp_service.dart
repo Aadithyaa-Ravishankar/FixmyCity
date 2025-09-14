@@ -114,9 +114,12 @@ class SupabaseOTPService {
               )
             );
           } catch (e) {
-            print('Failed to update user display name: $e');
+            print('Failed to update user display name in auth: $e');
           }
         }
+        
+        // Create or update user profile
+        await _createUserProfile(response.user!);
         
         return {
           'success': true,
@@ -324,6 +327,9 @@ class SupabaseOTPService {
       );
       
       if (response.user != null) {
+        // Create or update user profile for Supabase native OTP users too
+        await _createUserProfile(response.user!);
+        
         return {
           'success': true,
           'user': {
@@ -354,6 +360,9 @@ class SupabaseOTPService {
         );
         
         if (response.user != null) {
+          // Create or update user profile for password login users too
+          await _createUserProfile(response.user!);
+          
           return {
             'success': true,
             'user': {
@@ -382,6 +391,34 @@ class SupabaseOTPService {
         'success': false,
         'message': 'Authentication failed: ${e.toString()}',
       };
+    }
+  }
+
+  // Create user profile in user_profiles table
+  static Future<void> _createUserProfile(User user) async {
+    try {
+      String displayName = 'User';
+      
+      // Try to get display name from user metadata
+      if (user.userMetadata?['display_name'] != null) {
+        displayName = user.userMetadata!['display_name'];
+      } else if (user.email != null) {
+        displayName = user.email!.split('@')[0];
+      }
+      
+      // Insert or update user profile
+      await _supabase
+          .from('user_profiles')
+          .upsert({
+            'id': user.id,
+            'display_name': displayName,
+            'updated_at': DateTime.now().toIso8601String(),
+          });
+      
+      print('User profile created/updated for: $displayName');
+    } catch (e) {
+      print('Failed to create user profile: $e');
+      // Don't throw error - profile creation is not critical for auth
     }
   }
 }
