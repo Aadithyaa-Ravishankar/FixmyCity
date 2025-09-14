@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import '../services/geocoding_service.dart';
 import '../services/location_service.dart';
 import '../services/auth_service.dart';
+import '../widgets/severity_rating_dialog.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -354,6 +355,9 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
   String _address = 'Loading location...';
   bool _isLoadingAddress = true;
   String? _distance;
+  int? _userSeverityRating;
+  double? _averageSeverity;
+  int _severityVoteCount = 0;
 
   @override
   void initState() {
@@ -430,25 +434,39 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
           .select('*')
           .eq('complaint_id', widget.complaint['complaint_id']);
 
-      // Count likes and dislikes
+      // Count likes and dislikes, calculate average severity
       int likes = 0;
       int dislikes = 0;
       bool userLiked = false;
       bool userDisliked = false;
+      List<int> severityRatings = [];
 
       for (var verification in response) {
         if (verification['verified_true'] == true) {
           likes++;
           if (verification['user_id'] == currentUser.id) {
             userLiked = true;
+            _userSeverityRating = verification['severity'];
           }
         }
         if (verification['verified_false'] == true) {
           dislikes++;
           if (verification['user_id'] == currentUser.id) {
             userDisliked = true;
+            _userSeverityRating = verification['severity'];
           }
         }
+        
+        // Collect severity ratings for average calculation
+        if (verification['severity'] != null) {
+          severityRatings.add(verification['severity'] as int);
+        }
+      }
+
+      // Calculate average severity
+      double? avgSeverity;
+      if (severityRatings.isNotEmpty) {
+        avgSeverity = severityRatings.reduce((a, b) => a + b) / severityRatings.length;
       }
 
       setState(() {
@@ -456,6 +474,8 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
         _dislikeCount = dislikes;
         _isLiked = userLiked;
         _isDisliked = userDisliked;
+        _averageSeverity = avgSeverity;
+        _severityVoteCount = severityRatings.length;
       });
     } catch (e) {
       print('Error loading verification status: $e');
@@ -483,6 +503,7 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
         setState(() {
           _isLiked = false;
           _likeCount--;
+          _userSeverityRating = null;
         });
       } else {
         // Remove dislike if exists
@@ -500,13 +521,13 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
           });
         }
 
-        // Add like
+        // Add like without severity (default to null)
         await _supabase.from('verification').insert({
           'user_id': currentUser.id,
           'complaint_id': widget.complaint['complaint_id'],
           'verified_true': true,
           'verified_false': false,
-          'severity': 3, // Default severity
+          'severity': null,
         });
 
         setState(() {
@@ -530,6 +551,7 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
     }
   }
 
+
   Future<void> _toggleDislike() async {
     final currentUser = _supabase.auth.currentUser;
     if (currentUser == null) return;
@@ -551,6 +573,7 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
         setState(() {
           _isDisliked = false;
           _dislikeCount--;
+          _userSeverityRating = null;
         });
       } else {
         // Remove like if exists
@@ -565,16 +588,17 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
           setState(() {
             _isLiked = false;
             _likeCount--;
+            _userSeverityRating = null;
           });
         }
 
-        // Add dislike
+        // Add dislike without severity (default to null)
         await _supabase.from('verification').insert({
           'user_id': currentUser.id,
           'complaint_id': widget.complaint['complaint_id'],
           'verified_true': false,
           'verified_false': true,
-          'severity': 1, // Low severity for dislike
+          'severity': null,
         });
 
         setState(() {
@@ -587,6 +611,236 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error updating dislike: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _rateSeverity() async {
+    final currentUser = _supabase.auth.currentUser;
+    if (currentUser == null) return;
+
+    // Only show severity dialog if user has liked (not disliked)
+    if (!_isLiked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please like the complaint first to rate severity'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (context) => SeverityRatingDialog(
+          isLike: _isLiked,
+          onRatingSubmitted: (severity) => _updateSeverity(severity),
+        ),
+      );
+    }
+  }
+
+  Future<void> _showOverallSeverityDialog() async {
+    final currentUser = _supabase.auth.currentUser;
+    if (currentUser == null) return;
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (context) => Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceColor,
+              borderRadius: AppTheme.largeRadius,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: _averageSeverity != null 
+                            ? _getSeverityColor(_averageSeverity!.round()).withOpacity(0.1)
+                            : Colors.grey.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.analytics_outlined,
+                        color: _averageSeverity != null 
+                            ? _getSeverityColor(_averageSeverity!.round())
+                            : Colors.grey,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Overall Severity',
+                            style: AppTheme.headingSmall.copyWith(
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                          Text(
+                            _averageSeverity != null 
+                                ? '${_averageSeverity!.toStringAsFixed(1)}/5 (${_severityVoteCount} votes)'
+                                : 'No severity ratings yet',
+                            style: AppTheme.bodySmall.copyWith(
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                
+                // User's rating status
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.backgroundColor,
+                    borderRadius: AppTheme.mediumRadius,
+                    border: Border.all(color: AppTheme.borderLight),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Your Rating',
+                        style: AppTheme.labelLarge.copyWith(
+                          color: AppTheme.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (_userSeverityRating != null) ...[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.star,
+                              color: _getSeverityColor(_userSeverityRating!),
+                              size: 20,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '$_userSeverityRating/5',
+                              style: TextStyle(
+                                color: _getSeverityColor(_userSeverityRating!),
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            _rateSeverity();
+                          },
+                          child: Text('Update Rating'),
+                        ),
+                      ] else ...[
+                        Text(
+                          (_isLiked || _isDisliked) 
+                              ? 'You haven\'t rated severity yet'
+                              : 'Like or dislike first to rate severity',
+                          style: AppTheme.bodySmall.copyWith(
+                            color: AppTheme.textSecondary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        if (_isLiked || _isDisliked) ...[
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              _rateSeverity();
+                            },
+                            child: Text('Rate Severity'),
+                          ),
+                        ],
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Close button
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('Close'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _updateSeverity(int severity) async {
+    final currentUser = _supabase.auth.currentUser;
+    if (currentUser == null) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Update the existing verification record with severity
+      await _supabase
+          .from('verification')
+          .update({'severity': severity})
+          .eq('user_id', currentUser.id)
+          .eq('complaint_id', widget.complaint['complaint_id']);
+
+      setState(() {
+        _userSeverityRating = severity;
+      });
+
+      // Reload verification status to update average severity
+      await _loadVerificationStatus();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Severity rating updated: $severity/5'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating severity: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -639,6 +893,23 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
         return '🚦';
       default:
         return '🏙️';
+    }
+  }
+
+  Color _getSeverityColor(int severity) {
+    switch (severity) {
+      case 1:
+        return Colors.green;
+      case 2:
+        return Colors.lightGreen;
+      case 3:
+        return Colors.orange;
+      case 4:
+        return Colors.deepOrange;
+      case 5:
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 
@@ -709,6 +980,7 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                             style: TextStyle(
                               color: Colors.grey[600],
                               fontSize: 12,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -907,6 +1179,54 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                 ),
                 const SizedBox(width: 12),
                 
+                // Severity rating button (only show if user has liked, not disliked)
+                if (_isLiked && !_isLoading)
+                  InkWell(
+                    onTap: _rateSeverity,
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _userSeverityRating != null 
+                            ? _getSeverityColor(_userSeverityRating!).withOpacity(0.1)
+                            : AppTheme.primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: _userSeverityRating != null 
+                              ? _getSeverityColor(_userSeverityRating!)
+                              : AppTheme.primaryColor.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _userSeverityRating != null ? Icons.star : Icons.star_outline,
+                            size: 16,
+                            color: _userSeverityRating != null 
+                                ? _getSeverityColor(_userSeverityRating!)
+                                : AppTheme.primaryColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _userSeverityRating != null 
+                                ? '$_userSeverityRating/5'
+                                : 'Rate',
+                            style: TextStyle(
+                              color: _userSeverityRating != null 
+                                  ? _getSeverityColor(_userSeverityRating!)
+                                  : AppTheme.primaryColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                
+                if (_isLiked && !_isLoading) const SizedBox(width: 12),
+                
                 // Dislike button
                 InkWell(
                   onTap: _isLoading ? null : _toggleDislike,
@@ -941,6 +1261,8 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                     ),
                   ),
                 ),
+                const SizedBox(width: 12),
+                
                 
                 const Spacer(),
                 
