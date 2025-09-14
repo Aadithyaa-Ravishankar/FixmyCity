@@ -4,42 +4,60 @@ import 'package:geolocator/geolocator.dart';
 class LocationService {
   static Position? _currentPosition;
   
-  // Get user's current location
+  // Get user's current location - always request permission
   static Future<Position?> getCurrentLocation() async {
     try {
+      // Check current permission status first
+      LocationPermission permission = await Geolocator.checkPermission();
+      
+      // If denied, request permission
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      
+      // Handle different permission states
+      if (permission == LocationPermission.denied) {
+        print('Location permission denied by user.');
+        return null;
+      }
+      
+      if (permission == LocationPermission.deniedForever) {
+        print('Location permissions are permanently denied.');
+        return null;
+      }
+
       // Check if location services are enabled
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        print('Location services are disabled.');
+        print('Location services are disabled. Please enable location services.');
         return null;
       }
 
-      // Check location permissions
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          print('Location permissions are denied');
-          return null;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        print('Location permissions are permanently denied');
-        return null;
-      }
-
-      // Get current position
+      // Get current position with web-friendly settings
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10),
+        desiredAccuracy: LocationAccuracy.medium, // Use medium for better web compatibility
+        timeLimit: const Duration(seconds: 30), // Longer timeout for web
       );
       
       _currentPosition = position;
+      print('Location obtained: ${position.latitude}, ${position.longitude}');
       return position;
     } catch (e) {
       print('Error getting location: $e');
-      return null;
+      // Try with lower accuracy as fallback
+      try {
+        Position position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.low,
+          timeLimit: const Duration(seconds: 10),
+        );
+        _currentPosition = position;
+        print('Location obtained with low accuracy: ${position.latitude}, ${position.longitude}');
+        return position;
+      } catch (fallbackError) {
+        print('Fallback location attempt failed: $fallbackError');
+        _currentPosition = null;
+        return null;
+      }
     }
   }
 
