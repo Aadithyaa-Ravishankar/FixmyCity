@@ -17,10 +17,8 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   String _identifier = '';
   DateTime? _expiresAt;
   String _otpStatus = 'pending';
-  String _smsDeliveryStatus = 'sent';
   int _timeLeft = 0;
   StreamSubscription<Map<String, dynamic>>? _otpStatusSubscription;
-  StreamSubscription<String>? _smsDeliveryStatusSubscription;
   Timer? _countdownTimer;
 
   @override
@@ -39,10 +37,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
         // Start listening to real-time OTP status updates
         _startOTPStatusListener();
         
-        // Start listening to SMS delivery status (for phone numbers)
-        if (_type == 'phone') {
-          _startSMSDeliveryStatusListener();
-        }
         
         // Start countdown timer
         _startCountdownTimer();
@@ -56,7 +50,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
         if (mounted) {
           setState(() {
             _otpStatus = statusData['status'] ?? 'pending';
-            _smsDeliveryStatus = statusData['sms_status'] ?? 'sent';
           });
         }
       },
@@ -66,20 +59,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     );
   }
 
-  void _startSMSDeliveryStatusListener() {
-    _smsDeliveryStatusSubscription = AuthService.getSMSDeliveryStatusStream(_identifier).listen(
-      (deliveryStatus) {
-        if (mounted) {
-          setState(() {
-            _smsDeliveryStatus = deliveryStatus;
-          });
-        }
-      },
-      onError: (error) {
-        print('SMS delivery status stream error: $error');
-      },
-    );
-  }
 
   void _startCountdownTimer() {
     _countdownTimer?.cancel(); // Cancel any existing timer
@@ -111,7 +90,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   void dispose() {
     _countdownTimer?.cancel();
     _otpStatusSubscription?.cancel();
-    _smsDeliveryStatusSubscription?.cancel();
     try {
       _otpController.dispose();
     } catch (e) {
@@ -140,12 +118,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     });
 
     try {
-      Map<String, dynamic> response;
-      if (_type == 'phone') {
-        response = await AuthService.verifyPhoneOTP(_identifier, _otpController.text);
-      } else {
-        response = await AuthService.verifyEmailOTP(_identifier, _otpController.text);
-      }
+      final response = await AuthService.verifyEmailOTP(_identifier, _otpController.text);
 
       if (response['success'] == true) {
         if (mounted) {
@@ -180,12 +153,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     });
 
     try {
-      Map<String, dynamic> result;
-      if (_type == 'phone') {
-        result = await AuthService.sendOTPToPhone(_identifier);
-      } else {
-        result = await AuthService.sendOTPToEmail(_identifier);
-      }
+      final result = await AuthService.sendOTPToEmail(_identifier);
       
       // Update expiry time and restart countdown
       if (mounted) {
@@ -272,51 +240,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
-  // SMS Delivery Status helpers
-  Color _getSMSDeliveryStatusColor() {
-    switch (_smsDeliveryStatus) {
-      case 'sent':
-        return Colors.blue;
-      case 'delivered':
-        return Colors.green;
-      case 'failed':
-        return Colors.red;
-      case 'expired':
-        return Colors.orange;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  IconData _getSMSDeliveryStatusIcon() {
-    switch (_smsDeliveryStatus) {
-      case 'sent':
-        return Icons.send;
-      case 'delivered':
-        return Icons.check_circle;
-      case 'failed':
-        return Icons.error;
-      case 'expired':
-        return Icons.schedule;
-      default:
-        return Icons.help;
-    }
-  }
-
-  String _getSMSDeliveryStatusText() {
-    switch (_smsDeliveryStatus) {
-      case 'sent':
-        return 'SMS sent - waiting for delivery';
-      case 'delivered':
-        return 'SMS delivered successfully';
-      case 'failed':
-        return 'SMS delivery failed';
-      case 'expired':
-        return 'SMS delivery expired';
-      default:
-        return 'SMS status unknown';
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -406,37 +329,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 ),
               ),
               
-              // SMS Delivery Status (for phone numbers)
-              if (_type == 'phone') ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: _getSMSDeliveryStatusColor().withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: _getSMSDeliveryStatusColor().withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        _getSMSDeliveryStatusIcon(),
-                        color: _getSMSDeliveryStatusColor(),
-                        size: 16,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _getSMSDeliveryStatusText(),
-                        style: TextStyle(
-                          color: _getSMSDeliveryStatusColor(),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
               const SizedBox(height: 32),
 
               // OTP Input Field

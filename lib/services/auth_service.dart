@@ -2,15 +2,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_otp_service.dart';
 
 class AuthService {
-  // Send OTP to phone number using Supabase
-  static Future<Map<String, dynamic>> sendOTPToPhone(String phoneNumber) async {
-    try {
-      final result = await SupabaseOTPService.sendOTPToPhone(phoneNumber);
-      return result;
-    } catch (e) {
-      throw Exception('Failed to send OTP to phone: $e');
-    }
-  }
 
   // Send OTP to email using Supabase
   static Future<Map<String, dynamic>> sendOTPToEmail(String email) async {
@@ -22,15 +13,6 @@ class AuthService {
     }
   }
 
-  // Verify OTP for phone using Supabase
-  static Future<Map<String, dynamic>> verifyPhoneOTP(String phoneNumber, String otp) async {
-    try {
-      final result = await SupabaseOTPService.verifyOTP(phoneNumber, otp);
-      return result;
-    } catch (e) {
-      throw Exception('Failed to verify phone OTP: $e');
-    }
-  }
 
   // Verify OTP for email using Supabase
   static Future<Map<String, dynamic>> verifyEmailOTP(String email, String otp) async {
@@ -47,10 +29,6 @@ class AuthService {
     return SupabaseOTPService.getOTPStatusStream(identifier);
   }
 
-  // Get real-time SMS delivery status stream
-  static Stream<String> getSMSDeliveryStatusStream(String identifier) {
-    return SupabaseOTPService.getSMSDeliveryStatusStream(identifier);
-  }
 
   // Clean up expired OTPs
   static Future<void> cleanupExpiredOTPs() async {

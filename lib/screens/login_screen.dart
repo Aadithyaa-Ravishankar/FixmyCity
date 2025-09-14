@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl_phone_field/intl_phone_field.dart';
 import '../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -12,13 +11,10 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
   bool _isLoading = false;
-  bool _isPhoneLogin = true;
   bool _isSignupMode = false;
-  String _selectedCountryCode = '+91';
   bool _obscurePassword = true;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -44,7 +40,6 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   void dispose() {
     _animationController.dispose();
     _emailController.dispose();
-    _phoneController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
     super.dispose();
@@ -78,68 +73,34 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   }
 
   Future<void> _handleLogin() async {
-    if (_isPhoneLogin) {
-      String fullPhoneNumber = '$_selectedCountryCode${_phoneController.text}';
-      
-      if (!fullPhoneNumber.startsWith('+91') || fullPhoneNumber.length != 13) {
-        throw Exception('Please enter a valid 10-digit India phone number');
-      }
-      
-      final passwordResult = await AuthService.authenticateWithPassword(
-        fullPhoneNumber, 
-        _passwordController.text, 
-        'phone'
-      );
-      
-      if (passwordResult['success'] == true) {
-        _showSuccessMessage('Login successful!');
-        Navigator.pushReplacementNamed(context, '/home');
-        return;
-      }
-      
-      final result = await AuthService.sendOTPToPhone(fullPhoneNumber);
-      _navigateToOTP('phone', fullPhoneNumber, result);
-    } else {
-      final passwordResult = await AuthService.authenticateWithPassword(
-        _emailController.text, 
-        _passwordController.text, 
-        'email'
-      );
-      
-      if (passwordResult['success'] == true) {
-        _showSuccessMessage('Login successful!');
-        Navigator.pushReplacementNamed(context, '/home');
-        return;
-      }
-      
-      final result = await AuthService.sendOTPToEmail(_emailController.text);
-      _navigateToOTP('email', _emailController.text, result);
+    final passwordResult = await AuthService.authenticateWithPassword(
+      _emailController.text, 
+      _passwordController.text, 
+      'email'
+    );
+    
+    if (passwordResult['success'] == true) {
+      _showSuccessMessage('Login successful!');
+      Navigator.pushReplacementNamed(context, '/home');
+      return;
     }
+    
+    final result = await AuthService.sendOTPToEmail(_emailController.text);
+    _navigateToOTP('email', _emailController.text, result);
   }
 
   Future<void> _handleSignup() async {
-    if (_isPhoneLogin) {
-      String fullPhoneNumber = '$_selectedCountryCode${_phoneController.text}';
-      
-      if (!fullPhoneNumber.startsWith('+91') || fullPhoneNumber.length != 13) {
-        throw Exception('Please enter a valid 10-digit India phone number');
-      }
-      
-      final result = await AuthService.sendOTPToPhone(fullPhoneNumber);
-      _navigateToOTP('phone', fullPhoneNumber, result);
-    } else {
-      final result = await AuthService.sendOTPToEmail(_emailController.text);
-      _navigateToOTP('email', _emailController.text, result);
-    }
+    final result = await AuthService.sendOTPToEmail(_emailController.text);
+    _navigateToOTP('email', _emailController.text, result);
   }
 
   void _navigateToOTP(String type, String identifier, Map<String, dynamic> result) {
-    // For Supabase native OTP, we don't get expires_at, so use default 5 minutes
+    // For email OTP, use default 5 minutes
     final timeLeft = 5; // Default OTP expiry time
     
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('OTP sent to your ${type == 'phone' ? 'phone' : 'email'}! Valid for $timeLeft minutes.'),
+        content: Text('OTP sent to your email! Valid for $timeLeft minutes.'),
         backgroundColor: Colors.green,
         duration: const Duration(seconds: 4),
       ),
@@ -263,122 +224,105 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                     ),
                   ),
 
-                  // Contact Method Toggle
+                  // Email Authentication Header
                   Container(
+                    margin: const EdgeInsets.only(bottom: 24),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: Colors.blue.withOpacity(0.05),
                       borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withOpacity(0.1),
-                          spreadRadius: 1,
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                      border: Border.all(color: Colors.blue.withOpacity(0.2)),
                     ),
                     child: Row(
                       children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _isPhoneLogin = true;
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                color: _isPhoneLogin ? Colors.blue : Colors.transparent,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.phone,
-                                    color: _isPhoneLogin ? Colors.white : Colors.grey[600],
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Phone',
-                                    style: TextStyle(
-                                      color: _isPhoneLogin ? Colors.white : Colors.grey[600],
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.blue,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.email_outlined,
+                            color: Colors.white,
+                            size: 20,
                           ),
                         ),
+                        const SizedBox(width: 12),
                         Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _isPhoneLogin = false;
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                color: !_isPhoneLogin ? Colors.blue : Colors.transparent,
-                                borderRadius: BorderRadius.circular(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Email Authentication',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey[800],
+                                ),
                               ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.email,
-                                    color: !_isPhoneLogin ? Colors.white : Colors.grey[600],
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Email',
-                                    style: TextStyle(
-                                      color: !_isPhoneLogin ? Colors.white : Colors.grey[600],
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
+                              Text(
+                                'Secure login with email verification',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
 
                   // Name Field (for signup)
                   if (_isSignupMode) ...[
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
-                            spreadRadius: 1,
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
+                            color: Colors.blue.withOpacity(0.08),
+                            spreadRadius: 0,
+                            blurRadius: 20,
+                            offset: const Offset(0, 4),
                           ),
                         ],
                       ),
                       child: TextFormField(
                         controller: _nameController,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                         decoration: InputDecoration(
                           labelText: 'Full Name',
+                          labelStyle: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(16),
                             borderSide: BorderSide.none,
                           ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(color: Colors.grey.withOpacity(0.1)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(color: Colors.blue, width: 2),
+                          ),
                           filled: true,
-                          fillColor: Colors.white,
-                          prefixIcon: const Icon(Icons.person, color: Colors.blue),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          fillColor: Colors.grey[50],
+                          prefixIcon: Container(
+                            margin: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.person_outline, color: Colors.blue, size: 20),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                         ),
                         validator: (value) {
                           if (_isSignupMode && (value == null || value.isEmpty)) {
@@ -388,71 +332,69 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                         },
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
                   ],
 
-                  // Contact Field
+                  // Email Field
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.grey.withOpacity(0.1),
-                          spreadRadius: 1,
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
+                          color: Colors.blue.withOpacity(0.08),
+                          spreadRadius: 0,
+                          blurRadius: 20,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-                    child: _isPhoneLogin
-                        ? IntlPhoneField(
-                            controller: _phoneController,
-                            decoration: InputDecoration(
-                              labelText: 'Phone Number',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide.none,
-                              ),
-                              filled: true,
-                              fillColor: Colors.white,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                            ),
-                            initialCountryCode: 'IN',
-                            onChanged: (phone) {
-                              _selectedCountryCode = phone.countryCode;
-                            },
-                            validator: (phone) {
-                              if (phone == null || phone.number.isEmpty) {
-                                return 'Please enter your phone number';
-                              }
-                              return null;
-                            },
-                          )
-                        : TextFormField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            decoration: InputDecoration(
-                              labelText: 'Email Address',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide.none,
-                              ),
-                              filled: true,
-                              fillColor: Colors.white,
-                              prefixIcon: const Icon(Icons.email, color: Colors.blue),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your email';
-                              }
-                              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-                                return 'Please enter a valid email';
-                              }
-                              return null;
-                            },
+                    child: TextFormField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                      decoration: InputDecoration(
+                        labelText: 'Email Address',
+                        labelStyle: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Colors.grey.withOpacity(0.1)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(color: Colors.blue, width: 2),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                        prefixIcon: Container(
+                          margin: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
                           ),
+                          child: const Icon(Icons.email_outlined, color: Colors.blue, size: 20),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your email';
+                        }
+                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                          return 'Please enter a valid email';
+                        }
+                        return null;
+                      },
+                    ),
                   ),
                   const SizedBox(height: 16),
 
@@ -460,31 +402,53 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.grey.withOpacity(0.1),
-                          spreadRadius: 1,
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
+                          color: Colors.blue.withOpacity(0.08),
+                          spreadRadius: 0,
+                          blurRadius: 20,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
                     child: TextFormField(
                       controller: _passwordController,
                       obscureText: _obscurePassword,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                       decoration: InputDecoration(
                         labelText: 'Password',
+                        labelStyle: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(16),
                           borderSide: BorderSide.none,
                         ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Colors.grey.withOpacity(0.1)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(color: Colors.blue, width: 2),
+                        ),
                         filled: true,
-                        fillColor: Colors.white,
-                        prefixIcon: const Icon(Icons.lock, color: Colors.blue),
+                        fillColor: Colors.grey[50],
+                        prefixIcon: Container(
+                          margin: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.lock_outline, color: Colors.blue, size: 20),
+                        ),
                         suffixIcon: IconButton(
                           icon: Icon(
-                            _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                            _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                             color: Colors.grey[600],
                           ),
                           onPressed: () {
@@ -493,7 +457,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                             });
                           },
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -511,18 +475,22 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                   // Auth Button
                   Container(
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      gradient: const LinearGradient(
-                        colors: [Colors.blue, Colors.blueAccent],
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
+                      borderRadius: BorderRadius.circular(16),
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.blue.shade600,
+                          Colors.blue.shade500,
+                          Colors.blue.shade400,
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.blue.withOpacity(0.3),
-                          spreadRadius: 1,
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
+                          spreadRadius: 0,
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
                         ),
                       ],
                     ),
@@ -531,9 +499,9 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent,
                         shadowColor: Colors.transparent,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 20),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(16),
                         ),
                       ),
                       child: _isLoading

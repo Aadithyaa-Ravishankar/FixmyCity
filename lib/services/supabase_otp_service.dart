@@ -28,31 +28,6 @@ class SupabaseOTPService {
     }
   }
 
-  // Send SMS OTP using Supabase Edge Function
-  static Future<Map<String, dynamic>> _sendSMSOTP(String phoneNumber, String otp) async {
-    try {
-      final response = await _supabase.functions.invoke(
-        'send-sms',
-        body: {
-          'to': phoneNumber,
-          'message': 'Your OTP code is: $otp. This code will expire in 5 minutes.',
-        },
-      );
-      
-      return {
-        'success': true,
-        'message_id': response.data?['message_id'] ?? 'unknown',
-        'status': 'sent',
-      };
-    } catch (e) {
-      print('Failed to send SMS OTP: $e');
-      return {
-        'success': false,
-        'error': e.toString(),
-        'status': 'failed',
-      };
-    }
-  }
 
   // Send email OTP using Supabase native auth with updated template
   static Future<Map<String, dynamic>> sendOTPToEmail(String email) async {
@@ -105,44 +80,6 @@ class SupabaseOTPService {
     };
   }
 
-  // Send OTP to phone using Supabase + enhanced SMS service
-  static Future<Map<String, dynamic>> sendOTPToPhone(String phoneNumber) async {
-    try {
-      final otp = _generateOTP();
-      final expiry = DateTime.now().add(const Duration(minutes: 5));
-      
-      // Store OTP in Supabase database
-      final response = await _supabase
-          .from('otp_verifications')
-          .insert({
-            'identifier': phoneNumber,
-            'otp_code': otp,
-            'type': 'phone',
-            'expires_at': expiry.toIso8601String(),
-            'created_at': DateTime.now().toIso8601String(),
-            'status': 'pending',
-          })
-          .select()
-          .single();
-
-      // Send real SMS with OTP using Supabase Edge Function
-      final smsResult = await _sendSMSOTP(phoneNumber, otp);
-      
-      // Note: SMS details are tracked in the service, not in database
-      // This avoids the database schema error
-      
-      return {
-        'success': true,
-        'otp_id': response['id'],
-        'message': 'OTP sent to phone successfully',
-        'expires_at': expiry,
-        'sms_result': smsResult,
-      };
-      
-    } catch (e) {
-      throw Exception('Failed to send OTP to phone: $e');
-    }
-  }
 
   // Verify OTP using Supabase native auth to match native OTP sending
   static Future<Map<String, dynamic>> verifyOTP(String identifier, String otp) async {
@@ -249,22 +186,6 @@ class SupabaseOTPService {
             'email_confirmed': response.user!.emailConfirmedAt != null,
           };
         }
-      } else {
-        // For phone, create a user account
-        final response = await _supabase.auth.signUp(
-          phone: identifier,
-          password: _generateOTP() + DateTime.now().millisecondsSinceEpoch.toString(),
-        );
-        
-        if (response.user != null) {
-          return {
-            'id': response.user!.id,
-            'email': response.user!.email,
-            'phone': response.user!.phone,
-            'created_at': response.user!.createdAt,
-            'phone_confirmed': response.user!.phoneConfirmedAt != null,
-          };
-        }
       }
       
       // If user creation failed, return a basic user object
@@ -314,20 +235,6 @@ class SupabaseOTPService {
         });
   }
 
-  // Get real-time SMS delivery status (simplified version)
-  static Stream<String> getSMSDeliveryStatusStream(String identifier) {
-    // Return a simple stream that shows 'sent' status
-    // SMS delivery is handled by the Supabase Edge Function
-    return Stream.periodic(const Duration(seconds: 2), (count) {
-      if (count < 3) {
-        return 'sent';
-      } else if (count < 5) {
-        return 'delivered';
-      } else {
-        return 'delivered';
-      }
-    });
-  }
 
   // Get current user
   static User? getCurrentUser() {
@@ -436,34 +343,6 @@ class SupabaseOTPService {
           return {
             'success': false,
             'message': 'Invalid email or password',
-          };
-        }
-      } else if (type == 'phone') {
-        // For phone numbers, try to sign in first
-        try {
-          final response = await _supabase.auth.signInWithPassword(
-            phone: identifier,
-            password: password,
-          );
-          
-          if (response.user != null) {
-            return {
-              'success': true,
-              'user': {
-                'id': response.user!.id,
-                'email': response.user!.email,
-                'phone': response.user!.phone,
-                'created_at': response.user!.createdAt,
-                'phone_confirmed': response.user!.phoneConfirmedAt != null,
-              },
-              'message': 'Login successful with password',
-            };
-          }
-        } catch (e) {
-          // User doesn't exist, return failure
-          return {
-            'success': false,
-            'message': 'Invalid phone number or password',
           };
         }
       }
