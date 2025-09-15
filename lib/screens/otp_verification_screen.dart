@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 import '../services/auth_service.dart';
+import '../theme/app_theme.dart';
 
 class OTPVerificationScreen extends StatefulWidget {
   const OTPVerificationScreen({super.key});
@@ -192,7 +193,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   Color _getStatusColor() {
     switch (_otpStatus) {
       case 'pending':
-        return Colors.blue;
+        return AppTheme.primaryColor;
       case 'verified':
         return Colors.green;
       case 'expired':
@@ -244,12 +245,21 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppTheme.getBackgroundColor(context),
       appBar: AppBar(
-        title: const Text('Verify Code'),
+        title: Text(
+          'Verify Code',
+          style: AppTheme.headingSmall.copyWith(
+            color: AppTheme.getTextPrimary(context),
+          ),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(
+            Icons.arrow_back,
+            color: AppTheme.getTextPrimary(context),
+          ),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -261,19 +271,25 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Verification Icon
-              const Icon(
-                Icons.verified_user_outlined,
-                size: 80,
-                color: Colors.blue,
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.verified_user_outlined,
+                  size: 80,
+                  color: AppTheme.primaryColor,
+                ),
               ),
               const SizedBox(height: 24),
               
               // Title
-              const Text(
+              Text(
                 'Enter Verification Code',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
+                style: AppTheme.headingLarge.copyWith(
+                  color: AppTheme.getTextPrimary(context),
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -282,9 +298,8 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
               // Subtitle
               Text(
                 'We sent a 6-digit code to\n$_identifier',
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
+                style: AppTheme.bodyLarge.copyWith(
+                  color: AppTheme.getTextSecondary(context),
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -295,7 +310,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
                   color: _getStatusColor().withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: AppTheme.mediumRadius,
                   border: Border.all(color: _getStatusColor().withOpacity(0.3)),
                 ),
                 child: Row(
@@ -343,15 +358,15 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 animationType: AnimationType.fade,
                 pinTheme: PinTheme(
                   shape: PinCodeFieldShape.box,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: AppTheme.mediumRadius,
                   fieldHeight: 60,
                   fieldWidth: 50,
-                  activeFillColor: Colors.white,
-                  inactiveFillColor: Colors.grey[100],
-                  selectedFillColor: Colors.blue[50],
-                  activeColor: Colors.blue,
-                  inactiveColor: Colors.grey[300],
-                  selectedColor: Colors.blue,
+                  activeFillColor: AppTheme.getSurfaceColor(context),
+                  inactiveFillColor: AppTheme.getBackgroundColor(context),
+                  selectedFillColor: AppTheme.primaryColor.withOpacity(0.1),
+                  activeColor: AppTheme.primaryColor,
+                  inactiveColor: AppTheme.getBorderLight(context),
+                  selectedColor: AppTheme.primaryColor,
                 ),
                 enableActiveFill: true,
                 onCompleted: (value) {
@@ -364,32 +379,47 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
               const SizedBox(height: 32),
 
               // Verify Button
-              ElevatedButton(
-                onPressed: _isLoading ? null : _verifyOTP,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: AppTheme.largeRadius,
+                  gradient: AppTheme.primaryGradient,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primaryColor.withOpacity(0.3),
+                      spreadRadius: 0,
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _verifyOTP,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    foregroundColor: Colors.white,
+                    shadowColor: Colors.transparent,
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppTheme.largeRadius,
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Text(
+                          'Verify Code',
+                          style: AppTheme.bodyLarge.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      )
-                    : const Text(
-                        'Verify Code',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                ),
               ),
               const SizedBox(height: 24),
 
@@ -398,16 +428,18 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 alignment: WrapAlignment.center,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  const Text(
+                  Text(
                     "Didn't receive the code? ",
-                    style: TextStyle(color: Colors.grey),
+                    style: AppTheme.bodyMedium.copyWith(
+                      color: AppTheme.getTextSecondary(context),
+                    ),
                   ),
                   TextButton(
                     onPressed: _isLoading ? null : _resendOTP,
-                    child: const Text(
+                    child: Text(
                       'Resend',
-                      style: TextStyle(
-                        color: Colors.blue,
+                      style: AppTheme.bodyMedium.copyWith(
+                        color: AppTheme.primaryColor,
                         fontWeight: FontWeight.w600,
                       ),
                     ),

@@ -329,15 +329,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Container(
               height: 70,
               decoration: BoxDecoration(
-                gradient: AppTheme.primaryGradient,
+                color: Colors.transparent,
                 borderRadius: AppTheme.largeRadius,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.primaryColor.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -346,7 +339,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Text(
                     'Profile',
                     style: AppTheme.headingMedium.copyWith(
-                      color: Colors.white,
+                      color: AppTheme.getTextPrimary(context),
                       fontSize: 20,
                     ),
                   ),

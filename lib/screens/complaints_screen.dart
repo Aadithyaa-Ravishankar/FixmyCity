@@ -614,15 +614,8 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
             child: Container(
               height: 70,
               decoration: BoxDecoration(
-                gradient: AppTheme.primaryGradient,
+                color: Colors.transparent,
                 borderRadius: AppTheme.largeRadius,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.primaryColor.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -631,7 +624,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                   child: Text(
                     'Report an Issue',
                     style: AppTheme.headingMedium.copyWith(
-                      color: Colors.white,
+                      color: AppTheme.getTextPrimary(context),
                       fontSize: 20,
                     ),
                   ),

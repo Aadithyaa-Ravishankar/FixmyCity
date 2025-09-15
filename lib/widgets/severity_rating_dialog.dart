@@ -106,7 +106,7 @@ class _SeverityRatingDialogState extends State<SeverityRatingDialog> {
                   // Rating buttons
                   Wrap(
                     alignment: WrapAlignment.spaceEvenly,
-                    spacing: 8,
+                    spacing: 16,
                     children: List.generate(5, (index) {
                       final severity = index + 1;
                       final isSelected = _selectedSeverity == severity;

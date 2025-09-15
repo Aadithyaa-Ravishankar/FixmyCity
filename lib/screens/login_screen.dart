@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -124,7 +125,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: AppTheme.getBackgroundColor(context),
       body: SafeArea(
         child: FadeTransition(
           opacity: _fadeAnimation,
@@ -140,31 +141,28 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
+                      color: AppTheme.primaryColor.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
                       Icons.location_city,
                       size: 60,
-                      color: Colors.blue,
+                      color: AppTheme.primaryColor,
                     ),
                   ),
                   const SizedBox(height: 24),
                   Text(
                     'Welcome to FixmyCity',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[800],
+                    style: AppTheme.headingLarge.copyWith(
+                      color: AppTheme.getTextPrimary(context),
                     ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
                   Text(
                     _isSignupMode ? 'Create your account' : 'Sign in to continue',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[600],
+                    style: AppTheme.bodyLarge.copyWith(
+                      color: AppTheme.getTextSecondary(context),
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -183,8 +181,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                               });
                             },
                             style: TextButton.styleFrom(
-                              backgroundColor: !_isSignupMode ? Colors.blue : Colors.transparent,
-                              foregroundColor: !_isSignupMode ? Colors.white : Colors.grey[600],
+                              backgroundColor: !_isSignupMode ? AppTheme.primaryColor : Colors.transparent,
+                              foregroundColor: !_isSignupMode ? Colors.white : AppTheme.getTextSecondary(context),
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -202,8 +200,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                               });
                             },
                             style: TextButton.styleFrom(
-                              backgroundColor: _isSignupMode ? Colors.blue : Colors.transparent,
-                              foregroundColor: _isSignupMode ? Colors.white : Colors.grey[600],
+                              backgroundColor: _isSignupMode ? AppTheme.primaryColor : Colors.transparent,
+                              foregroundColor: _isSignupMode ? Colors.white : AppTheme.getTextSecondary(context),
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -221,17 +219,17 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                     margin: const EdgeInsets.only(bottom: 24),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blue.withOpacity(0.2)),
+                      color: AppTheme.primaryColor.withOpacity(0.05),
+                      borderRadius: AppTheme.mediumRadius,
+                      border: Border.all(color: AppTheme.primaryColor.withOpacity(0.2)),
                     ),
                     child: Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.blue,
-                            borderRadius: BorderRadius.circular(8),
+                            color: AppTheme.primaryColor,
+                            borderRadius: AppTheme.smallRadius,
                           ),
                           child: const Icon(
                             Icons.email_outlined,
@@ -246,17 +244,15 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                             children: [
                               Text(
                                 'Email Authentication',
-                                style: TextStyle(
-                                  fontSize: 16,
+                                style: AppTheme.bodyLarge.copyWith(
                                   fontWeight: FontWeight.w600,
-                                  color: Colors.grey[800],
+                                  color: AppTheme.getTextPrimary(context),
                                 ),
                               ),
                               Text(
                                 'Secure login with email verification',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
+                                style: AppTheme.bodySmall.copyWith(
+                                  color: AppTheme.getTextSecondary(context),
                                 ),
                               ),
                             ],
@@ -270,49 +266,41 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                   if (_isSignupMode) ...[
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.blue.withOpacity(0.08),
-                            spreadRadius: 0,
-                            blurRadius: 20,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
+                        color: AppTheme.getSurfaceColor(context),
+                        borderRadius: AppTheme.largeRadius,
+                        boxShadow: const [AppTheme.cardShadow],
+                        border: Border.all(color: AppTheme.getBorderLight(context)),
                       ),
                       child: TextFormField(
                         controller: _nameController,
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                         decoration: InputDecoration(
                           labelText: 'Full Name',
-                          labelStyle: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
+                          labelStyle: AppTheme.bodyMedium.copyWith(
+                            color: AppTheme.getTextSecondary(context),
                           ),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: AppTheme.largeRadius,
                             borderSide: BorderSide.none,
                           ),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(color: Colors.grey.withOpacity(0.1)),
+                            borderRadius: AppTheme.largeRadius,
+                            borderSide: BorderSide(color: AppTheme.getBorderLight(context)),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(color: Colors.blue, width: 2),
+                            borderRadius: AppTheme.largeRadius,
+                            borderSide: BorderSide(color: AppTheme.primaryColor, width: 2),
                           ),
                           filled: true,
-                          fillColor: Colors.grey[50],
+                          fillColor: AppTheme.getBackgroundColor(context),
                           prefixIcon: Container(
                             margin: const EdgeInsets.all(12),
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: Colors.blue.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
+                              color: AppTheme.primaryColor.withOpacity(0.1),
+                              borderRadius: AppTheme.smallRadius,
                             ),
-                            child: const Icon(Icons.person_outline, color: Colors.blue, size: 20),
+                            child: const Icon(Icons.person_outline, color: AppTheme.primaryColor, size: 20),
                           ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                         ),
@@ -330,16 +318,10 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                   // Email Field
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.blue.withOpacity(0.08),
-                          spreadRadius: 0,
-                          blurRadius: 20,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                      color: AppTheme.getSurfaceColor(context),
+                      borderRadius: AppTheme.largeRadius,
+                      boxShadow: const [AppTheme.cardShadow],
+                      border: Border.all(color: AppTheme.getBorderLight(context)),
                     ),
                     child: TextFormField(
                       controller: _emailController,
@@ -347,33 +329,31 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                       decoration: InputDecoration(
                         labelText: 'Email Address',
-                        labelStyle: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
+                        labelStyle: AppTheme.bodyMedium.copyWith(
+                          color: AppTheme.getTextSecondary(context),
                         ),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: AppTheme.largeRadius,
                           borderSide: BorderSide.none,
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: Colors.grey.withOpacity(0.1)),
+                          borderRadius: AppTheme.largeRadius,
+                          borderSide: BorderSide(color: AppTheme.getBorderLight(context)),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: Colors.blue, width: 2),
+                          borderRadius: AppTheme.largeRadius,
+                          borderSide: BorderSide(color: AppTheme.primaryColor, width: 2),
                         ),
                         filled: true,
-                        fillColor: Colors.grey[50],
+                        fillColor: AppTheme.getBackgroundColor(context),
                         prefixIcon: Container(
                           margin: const EdgeInsets.all(12),
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
+                            color: AppTheme.primaryColor.withOpacity(0.1),
+                            borderRadius: AppTheme.smallRadius,
                           ),
-                          child: const Icon(Icons.email_outlined, color: Colors.blue, size: 20),
+                          child: const Icon(Icons.email_outlined, color: AppTheme.primaryColor, size: 20),
                         ),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                       ),
@@ -393,16 +373,10 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                   // Password Field
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.blue.withOpacity(0.08),
-                          spreadRadius: 0,
-                          blurRadius: 20,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                      color: AppTheme.getSurfaceColor(context),
+                      borderRadius: AppTheme.largeRadius,
+                      boxShadow: const [AppTheme.cardShadow],
+                      border: Border.all(color: AppTheme.getBorderLight(context)),
                     ),
                     child: TextFormField(
                       controller: _passwordController,
@@ -410,38 +384,36 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                       decoration: InputDecoration(
                         labelText: 'Password',
-                        labelStyle: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
+                        labelStyle: AppTheme.bodyMedium.copyWith(
+                          color: AppTheme.getTextSecondary(context),
                         ),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: AppTheme.largeRadius,
                           borderSide: BorderSide.none,
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: Colors.grey.withOpacity(0.1)),
+                          borderRadius: AppTheme.largeRadius,
+                          borderSide: BorderSide(color: AppTheme.getBorderLight(context)),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: Colors.blue, width: 2),
+                          borderRadius: AppTheme.largeRadius,
+                          borderSide: BorderSide(color: AppTheme.primaryColor, width: 2),
                         ),
                         filled: true,
-                        fillColor: Colors.grey[50],
+                        fillColor: AppTheme.getBackgroundColor(context),
                         prefixIcon: Container(
                           margin: const EdgeInsets.all(12),
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
+                            color: AppTheme.primaryColor.withOpacity(0.1),
+                            borderRadius: AppTheme.smallRadius,
                           ),
-                          child: const Icon(Icons.lock_outline, color: Colors.blue, size: 20),
+                          child: const Icon(Icons.lock_outline, color: AppTheme.primaryColor, size: 20),
                         ),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                            color: Colors.grey[600],
+                            color: AppTheme.getTextSecondary(context),
                           ),
                           onPressed: () {
                             setState(() {
@@ -467,19 +439,11 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                   // Auth Button
                   Container(
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.blue.shade600,
-                          Colors.blue.shade500,
-                          Colors.blue.shade400,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      borderRadius: AppTheme.largeRadius,
+                      gradient: AppTheme.primaryGradient,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.blue.withOpacity(0.3),
+                          color: AppTheme.primaryColor.withOpacity(0.3),
                           spreadRadius: 0,
                           blurRadius: 20,
                           offset: const Offset(0, 8),
@@ -493,7 +457,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                         shadowColor: Colors.transparent,
                         padding: const EdgeInsets.symmetric(vertical: 20),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: AppTheme.largeRadius,
                         ),
                       ),
                       child: _isLoading
@@ -521,9 +485,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                   if (_isSignupMode)
                     Text(
                       'By creating an account, you agree to our Terms of Service and Privacy Policy.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
+                      style: AppTheme.bodySmall.copyWith(
+                        color: AppTheme.getTextSecondary(context),
                       ),
                       textAlign: TextAlign.center,
                     ),

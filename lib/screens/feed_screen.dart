@@ -263,15 +263,8 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             child: Container(
               height: 70,
               decoration: BoxDecoration(
-                gradient: AppTheme.primaryGradient,
+                color: Colors.transparent,
                 borderRadius: AppTheme.largeRadius,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.primaryColor.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -280,7 +273,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                     Text(
                       'FixmyCity',
                       style: AppTheme.headingMedium.copyWith(
-                        color: Colors.white,
+                        color: AppTheme.getTextPrimary(context),
                         fontSize: 20,
                       ),
                     ),
@@ -288,16 +281,17 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: AppTheme.getSurfaceColor(context),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white.withOpacity(0.3)),
+                        border: Border.all(color: AppTheme.getBorderLight(context)),
+                        boxShadow: const [AppTheme.cardShadow],
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.filter_list,
-                            color: Colors.white,
+                            color: AppTheme.getTextSecondary(context),
                             size: 14,
                           ),
                           const SizedBox(width: 4),
@@ -305,15 +299,15 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                             child: DropdownButton<double>(
                               value: _selectedDistance,
                               onChanged: _onDistanceChanged,
-                              dropdownColor: AppTheme.primaryColor,
-                              style: const TextStyle(
-                                color: Colors.white,
+                              dropdownColor: AppTheme.getSurfaceColor(context),
+                              style: TextStyle(
+                                color: AppTheme.getTextPrimary(context),
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,
                               ),
-                              icon: const Icon(
+                              icon: Icon(
                                 Icons.keyboard_arrow_down,
-                                color: Colors.white,
+                                color: AppTheme.getTextSecondary(context),
                                 size: 12,
                               ),
                               items: _distanceOptions.map((option) {
@@ -322,7 +316,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                                   child: Text(
                                     option['label'],
                                     style: AppTheme.bodySmall.copyWith(
-                                      color: Colors.white,
+                                      color: AppTheme.getTextPrimary(context),
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
@@ -413,14 +407,16 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
   final SupabaseClient _supabase = Supabase.instance.client;
   bool _isLiked = false;
   bool _isDisliked = false;
+  bool _isLoading = false;
   int _likeCount = 0;
   int _dislikeCount = 0;
-  bool _isLoading = false;
+  double? _averageSeverity;
+  int? _userSeverityRating;
+  final PageController _mediaPageController = PageController();
+  int _currentMediaIndex = 0;
   String _address = 'Loading location...';
   bool _isLoadingAddress = true;
   String? _distance;
-  int? _userSeverityRating;
-  double? _averageSeverity;
   int _severityVoteCount = 0;
 
   @override
@@ -898,26 +894,30 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: List.generate(5, (index) {
                               int rating = index + 1;
-                              return InkWell(
-                                onTap: () => _updateSeverity(rating),
-                                borderRadius: BorderRadius.circular(25),
-                                child: Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(25),
-                                    border: Border.all(
-                                      color: Colors.grey.withOpacity(0.3),
-                                    ),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      rating.toString(),
-                                      style: TextStyle(
-                                        color: Colors.grey[600],
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 16,
+                              return Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                                  child: InkWell(
+                                    onTap: () => _updateSeverity(rating),
+                                    borderRadius: BorderRadius.circular(18),
+                                    child: Container(
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(18),
+                                        border: Border.all(
+                                          color: Colors.grey.withOpacity(0.3),
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          rating.toString(),
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontWeight: FontWeight.w500,
+                                            fontSize: 14,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -1063,6 +1063,107 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
       default:
         return '🏙️';
     }
+  }
+
+  Widget _buildMediaSlider() {
+    List<Widget> mediaItems = [];
+    
+    // Add image if available
+    if (widget.complaint['picture_url'] != null) {
+      mediaItems.add(ComplaintImageViewer(imageUrl: widget.complaint['picture_url']));
+    }
+    
+    // Add video if available
+    if (widget.complaint['video_url'] != null) {
+      mediaItems.add(ComplaintVideoPlayer(videoUrl: widget.complaint['video_url']));
+    }
+    
+    // If only one media item, don't use slider
+    if (mediaItems.length == 1) {
+      return Container(
+        margin: const EdgeInsets.all(16),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: AspectRatio(
+            aspectRatio: 4 / 3,
+            child: mediaItems.first,
+          ),
+        ),
+      );
+    }
+    
+    // Use PageView for multiple media items
+    return Container(
+      margin: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: AspectRatio(
+                  aspectRatio: 4 / 3,
+                  child: PageView.builder(
+                    controller: _mediaPageController,
+                    onPageChanged: (index) {
+                      setState(() {
+                        _currentMediaIndex = index;
+                      });
+                    },
+                    itemCount: mediaItems.length,
+                    itemBuilder: (context, index) {
+                      return mediaItems[index];
+                    },
+                  ),
+                ),
+              ),
+              // Media count indicator
+              if (mediaItems.length > 1)
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${_currentMediaIndex + 1}/${mediaItems.length}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          // Page indicators below media
+          if (mediaItems.length > 1)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: mediaItems.asMap().entries.map((entry) {
+                  return Container(
+                    width: 6,
+                    height: 6,
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _currentMediaIndex == entry.key
+                          ? AppTheme.primaryColor
+                          : Colors.grey.withOpacity(0.4),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   Color _getSeverityColor(int severity) {
@@ -1222,15 +1323,7 @@ class _ComplaintPostCardState extends State<ComplaintPostCard> {
 
           // Media (Image/Video)
           if (widget.complaint['picture_url'] != null || widget.complaint['video_url'] != null)
-            Container(
-              margin: const EdgeInsets.all(16),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: widget.complaint['video_url'] != null
-                    ? ComplaintVideoPlayer(videoUrl: widget.complaint['video_url'])
-                    : ComplaintImageViewer(imageUrl: widget.complaint['picture_url']),
-              ),
-            ),
+            _buildMediaSlider(),
 
 
           // Location info
@@ -1568,6 +1661,7 @@ class _ComplaintVideoPlayerState extends State<ComplaintVideoPlayer> {
     _controller?.dispose();
     super.dispose();
   }
+
 
   @override
   Widget build(BuildContext context) {
